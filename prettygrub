@@ -1,0 +1,254 @@
+#!/usr/bin/env bash
+#####################################################################
+## ===================== Disclaimer ============================== ##
+## This script-program is a proof-of-concept project and           ##
+## a self training playground on Bash scripting.                   ##
+## It is free for copy and use, while I am not responsible for any ##
+## damage on your software or hardware. Use at your own risk!      ##
+## It would be kind if you report any possible bugs, or ideas for  ##
+## smart improvement of current code logic and possible new        ##
+## features that are relevant.                                     ##
+## =============================================================== ##
+
+#####################################################################
+##                      prettygrub                                 ##
+## This script will create a grub theme based on provided settings ##
+## compatible with horizontal-grub script, to conform a theme      ##
+## with fake-horizontal style.                                     ##
+## It might be customized, so it can create usual grub themes.     ##
+## It is supposed to be a base tool, which might be used from      ##
+## theme developers to create even more artistic themes.           ##
+## =============================================================== ##
+#####           petsam's "Adventures in Bash"                   #####
+#####################################################################
+
+
+# Check if run as root or sudo
+if (( $(id -u) == 0 )); then
+    echo "The script is run as root"
+fi
+
+PrettygrubConfigurationPath="/home/kpetros/codehub/PrettyGrubTemplates"
+
+# Help message
+PrettygrubHelp="PrettyGrub will create a grub theme based on provided settings,
+    compatible with horizontal-grub script, to conform a theme with fake-horizontal style.
+    Usage:
+    prewttygrub (-t | --template) [TEMPLATE] If TEMPLATE is ommited, default template will be used
+    prewttygrub (-h | --help) This help information message"
+
+
+PrettygrubHeading="
+#### Automatically created grub theme by PrettyGrub ####
+"
+
+function FileExists {
+if [ -r $1 ]; then
+#	echo $1 " was found."
+	return 0;
+elif [ -d $1 ] &&  [ "$2" = "icons" ] ; then
+#	echo $1 " was found."
+	return 0;
+else
+	echo $1 " was not found."
+	return 128;
+fi
+}
+
+# Create work directory
+function CreateWorkDir {
+	DateSuffix=$(date +%s)
+	if [ -w /tmp ];then
+		WorkDir=/tmp/prettygrub-"$DateSuffix"
+	else
+		WorkDir=$HOME/.local/tmp/prettygrub-"$DateSuffix"
+	fi
+	mkdir -p "$WorkDir"
+	#cd $WorkDir
+	echo "Created working directory :" "$WorkDir"
+
+}
+
+function PickResources {
+#if $2; then ${2:+"$2"/}
+ResourceType=$1
+shift
+SettingName=$1
+shift
+ResourceSetting=$*
+CurrentResource=""
+
+if [ "$ResourceType" != "SETTING" ] ; then
+	if [ "$ResourceType" = "fonts" ]; then
+		CurrentSetting=$(echo $ResourceSetting | cut -d, -f2,3,4 | tr -d \")
+		#DefaultSetting=$(grep ^$1 "$PrettygrubConfigurationPath/templates/default.conf" | cut -d: -f2,3,4,5,6 | cut -d, -f2 | tr -d \")
+		CurrentResource=$(echo $ResourceSetting | cut -d, -f1 | tr -d \")
+		#DefaultResource=$(grep ^$1 "$PrettygrubConfigurationPath/templates/default.conf" | cut -d: -f2,3,4,5,6 | cut -d, -f1 | tr -d \")
+#		echo "FontResourse" $CurrentResource
+#		echo "FontSetting" $CurrentSetting
+	else
+		CurrentSetting=$ResourceSetting
+		#DefaultSetting=$(grep ^$1 "$PrettygrubConfigurationPath/templates/default.conf" | cut -d: -f2 | tr -d \")
+		CurrentResource=$ResourceSetting
+		#DefaultResource=$DefaultSetting
+#		echo "Resourse" $CurrentResource
+#		echo "Setting" $CurrentSetting
+	fi
+	#if [ -f "$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource ]
+	#CurrentResource="$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource
+	#CurrentResource="$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource
+	#FileExists $CurrentResource
+#	echo "FinalResource" $CurrentResource
+	#if [ $? -ne 0 ]; then
+	#	echo "$CurrentResource" was not found. Using default resource.
+	#	CurrentResource=${2:+"$2"/}$DefaultResource
+	#	CurrentSetting=$DefaultSetting
+	#fi
+	if echo $CurrentResource | grep -o \* 2>/dev/null ; then
+		cp -r "$Resources"/${CurrentResource%'*'*}*${CurrentResource#*'*'} "$WorkDir"/ 2>/dev/null
+		#ls "$Resources"/${CurrentResource%'*'*}*${CurrentResource#*'*'} 2>/dev/null
+		if [ $? -ne 0 ]; then
+			echo "$CurrentResource" was not found. Using default resource.
+			cp -r "$DefaultResources"/${ResourceType:+"$ResourceType"/}${CurrentResource%'*'*}*${CurrentResource#*'*'} "$WorkDir"/
+		#	ls "$DefaultResources"/${ResourceType:+"$ResourceType"/}${CurrentResource%'*'*}*${CurrentResource#*'*'} 2>/dev/null
+		fi
+	else
+		cp -r "$Resources"/$CurrentResource "$WorkDir"/ 2>/dev/null
+		if [ $? -ne 0 ]; then
+			echo "$CurrentResource" was not found. Using default resource.
+			cp -r "$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource "$WorkDir"/
+		#	ls "$DefaultResources"/${ResourceType:+"$ResourceType"/}${CurrentResource%'*'*}*${CurrentResource#*'*'} 2>/dev/null
+		fi
+
+	fi
+
+#	echo "Setting" $CurrentSetting
+else
+	CurrentSetting=$ResourceSetting
+#	echo "Setting" $CurrentSetting
+fi
+
+## TODO: check if Parameter is empty and set the default
+sed -i 's/'"$SettingName"'/'"$CurrentSetting"'/g' "$WorkDir"/theme.txt
+grep -F "$CurrentSetting" "$WorkDir"/theme.txt
+}
+
+# Check for given command line parameters
+
+#CustomCfg=false
+if [ $# -eq 0 ]; then
+	PGTemplate="default"
+elif [ $1 = "-h" ] || [ $1 = "--help" ]; then
+	echo -e "$PrettygrubHelp"
+	exit;
+elif [ $1 = "-t" ] || [ $1 = "--template" ]; then
+	shift
+	PGTemplate="$1"
+else
+	echo "Unknown argument"
+	echo "Exiting..."
+	exit;
+fi
+
+#TemplateConf
+DefaultTemplate="$PrettygrubConfigurationPath"/templates/prettygrub
+Template="$PrettygrubConfigurationPath"/templates/"$PGTemplate"
+#TemplateTxtFile="$Template"/theme.txt
+DefaultResources="$PrettygrubConfigurationPath"/resources
+Resources="$Template"/resources
+
+echo "Transforming " $Template
+# "with" $TemplateTxtFile
+
+
+if  ! ( FileExists $TemplateConf); then
+	echo "Template file is missing. Exiting..."
+	exit;
+fi
+
+CreateWorkDir
+echo  $PrettygrubHeading > "$WorkDir"/theme.txt
+if  FileExists "$Template"/theme.txt ; then
+	cat "$Template"/theme.txt >> "$WorkDir"/theme.txt
+else
+	cat "$DefaultTemplate"/theme.txt >> "$WorkDir"/theme.txt
+	echo "Template file(s) missing. Using default."
+fi
+
+if [ -r "$DefaultTemplate"/default.conf ]; then . "$DefaultTemplate"/default.conf; fi
+if [ -r "$Template"/default.conf ]; then . "$Template"/default.conf; fi
+if [ ! $CustomAspectRatio = "" ]; then AspectRatio=$CustomAspectRatio; fi
+if [ ! $CustomGrubResolution = "" ]; then GrubResolution=$CustomGrubResolution; fi
+if [ -r "$DefaultTemplate"/"$AspectRatio".conf ]; then . "$DefaultTemplate"/"$AspectRatio".conf; fi
+if [ -r "$Template"/"$AspectRatio".conf ]; then . "$Template"/"$AspectRatio".conf; fi
+if [ -r "$DefaultTemplate"/"$GrubResolution".conf ]; then . "$DefaultTemplate"/"$GrubResolution".conf ; fi
+if [ -r "$Template"/"$GrubResolution".conf ]; then . "$Template"/"$GrubResolution".conf ; fi
+
+
+# Set and copy resources
+
+PickResources "wallpapers" "PG_WallpaperImage" $WallpaperImage
+PickResources "fonts" "PG_TerminalFont" $TerminalFont
+PickResources "terminal" "PG_TerminalBitmaps" $TerminalBitmaps
+PickResources "fonts" "PG_MenuItemFont" $MenuItemFont
+PickResources "fonts" "PG_SelectedItemFont" $SelectedItemFont
+PickResources "menu" "PG_MenuBitmaps" $MenuBitmaps
+PickResources "menuitem" "PG_ItemBitmaps" $ItemBitmaps
+PickResources "selected" "PG_SelectedBitmaps" $SelectedBitmaps
+PickResources "clock" "PG_ClockCenterImage" $ClockCenterImage
+PickResources "clock" "PG_ClockTickImage" $ClockTickImage
+PickResources "fonts" "PG_HelpFont" $HelpFont
+
+
+PickResources "SETTING" "PG_DesktopColor" $DesktopColor
+PickResources "SETTING" "PG_TopmenuColor" $TopmenuColor
+PickResources "SETTING" "PG_MenuItemColor" $MenuItemColor
+PickResources "SETTING" "PG_SelectedItemColor" $SelectedItemColor
+PickResources "SETTING" "PG_HelpTextLength" $HelpTextLength
+PickResources "SETTING" "PG_HelpColor" $HelpColor
+
+PickResources "icons" "PG_DistroIcons" $DistroIcons
+PickResources "logos" "PG_PGLogo" $PGLogo
+
+mkdir "$PrettygrubConfigurationPath"/themes/"$PGTemplate"
+cp -r "$WorkDir"/* "$PrettygrubConfigurationPath"/themes/"$PGTemplate"
+
+exit;
+
+case $1 in
+	WallpaperImage)
+
+	;;
+	DesktopColor)
+	;;
+	TerminalFont)
+	;;
+	TerminalBitmaps)
+	;;
+	TopmenuColor)
+	;;
+	MenuItemFont)
+	;;
+	MenuItemColor)
+	;;
+	SelectedItemFont)
+	;;
+	SelectedItemColor)
+	;;
+	MenuBitmaps)
+	;;
+	ItemBitmaps)
+	;;
+	SelectedBitmaps)
+	;;
+	ClockCenterImage)
+	;;
+	ClockTickImage)
+	;;
+	HelpTextLength)
+	;;
+	HelpFont)
+	;;
+	HelpFontColor)
+	;;
+esac
