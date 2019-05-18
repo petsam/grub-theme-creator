@@ -11,11 +11,12 @@
 ## =============================================================== ##
 
 #####################################################################
-##                      prettygrub                                 ##
+##                    grub-theme-creator                           ##
+##                     alias PrettyGrug                            ##
 ## This script will create a grub theme based on provided settings ##
 ## compatible with horizontal-grub script, to conform a theme      ##
 ## with fake-horizontal style.                                     ##
-## It might be customized, so it can create usual grub themes.     ##
+## It can be customized, so it can create usual grub themes.       ##
 ## It is supposed to be a base tool, which might be used from      ##
 ## theme developers to create even more artistic themes.           ##
 ## =============================================================== ##
@@ -40,9 +41,9 @@ PrettygrubHelp="PrettyGrub will create a grub theme based on provided settings,
 
 
 PrettygrubHeading="
-#### Automatically created grub theme by PrettyGrub ####
-# PrettyGrub GRUB2 gfxmenu by @petsam
-# Designed for many resolutions
+#### Automatically created grub theme by grub-theme-creator ####
+# PrettyGrub GRUB2 theme by @petsam
+# Auto-generate proper resources and settings per custom resolution
 "
 
 function FileExists {
@@ -96,15 +97,7 @@ if [ "$ResourceType" != "SETTING" ] && [ "$ResourceSetting" != "" ]; then
 	if (echo $CurrentResource | grep -o \* 2>/dev/null) ; then
 		if $(ls "$Resources"/${CurrentResource%'*'*}*${CurrentResource#*'*'}  2>/dev/null) ; then
 			CurrentResource="$Resources"/${CurrentResource%'*'*}*${CurrentResource#*'*'}
-		#elif $(ls "$DefaultResources"/${ResourceType:+"$ResourceType"/}"${CurrentResource%'*'*}"*"${CurrentResource#*'*'}"  2>/dev/null) ; then
-		#	CurrentResource="$DefaultResources"/${ResourceType:+"$ResourceType"/}${CurrentResource%'*'*}*${CurrentResource#*'*'}
 		else
-			#echo "Custom resources"
-			#ls "$Resources"/${CurrentResource%'*'*}*${CurrentResource#*'*'}
-			#echo "Default resources folder"
-			#ls "$DefaultResources"/${ResourceType:+"$ResourceType"/}
-			#echo "Default resources"
-			# ls "$DefaultResources"/${ResourceType:+"$ResourceType"/}"${CurrentResource%'*'*}"*"${CurrentResource#*'*'}"
 			echo "Could not find " $CurrentResource
 			CurrentResource="$DefaultResources"/${ResourceType:+"$ResourceType"/}${CurrentResource%'*'*}*${CurrentResource#*'*'}
 			#return 0;
@@ -116,12 +109,6 @@ if [ "$ResourceType" != "SETTING" ] && [ "$ResourceSetting" != "" ]; then
 		elif [ -d "$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource ] || [ -r "$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource ]; then
 			echo "Using default" "$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource
 			CurrentResource="$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource
-#		elif [ -r "$Resources"/$CurrentResource ]; then
-#			echo "Found " "$Resources"/$CurrentResource
-#			CurrentResource=$CurrentResource
-#		elif [ -r "$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource ]; then
-#			echo "Using default" "$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource
-#			CurrentResource="$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource
 		else
 			echo "Could not find " $CurrentResource
 			return 0;
@@ -129,10 +116,14 @@ if [ "$ResourceType" != "SETTING" ] && [ "$ResourceSetting" != "" ]; then
 	fi
 	if [ "$ResourceType" = "icons" ]; then
 		mkdir "$WorkDir"/icons
-		for DistroIcon in $(ls $CurrentResource/*); do
-			# echo "Icon " "$DistroIcon"
-			convert "$DistroIcon" -resize "$TopMenuIconWidth" -background None -gravity South -extent ${TopMenuIconWidth}x${TopMenuIconHeight} "$WorkDir"/icons/${DistroIcon##*\/} 2>/dev/null
-		done
+		if [ $HorizontalGrub = "true" ]; then
+			for DistroIcon in $(ls $CurrentResource/*); do
+				# echo "Icon " "$DistroIcon"
+				convert "$DistroIcon" -resize "$TopMenuIconWidth" -background None -gravity South -extent ${TopMenuIconWidth}x${TopMenuIconHeight} "$WorkDir"/icons/${DistroIcon##*\/} 2>/dev/null
+			done
+		else
+			cp -r $CurrentResource "$WorkDir"/icons 2>/dev/null
+		fi
 	else
 		cp -r $CurrentResource "$WorkDir"/ 2>/dev/null
 	fi
@@ -141,7 +132,6 @@ else
 	CurrentSetting=$ResourceSetting
 fi
 
-## TODO: check if Parameter is empty and set the default DONE
 if [ "$CurrentSetting" = "" ]; then
 	sed -i '/'"$SettingName"'/d' "$WorkDir"/theme.txt
 else
@@ -162,36 +152,54 @@ while [ "${1+defined}" ]; do
 			exit;
 			;;
 		-t|--template) shift
-			[ "${1+defined}" ] && [ ! "${1#-}" = "-" ] && PGTemplate="${1}" || PGTemplate="default"
-			shift
+			if [ "${1+defined}" ] && [ ! "${1#-}" = "-" ]; then
+				PGTemplate="$1"
+				shift
+			else
+				PGTemplate="default"
+			fi
 			;;
 		-a|--aspectratio) shift
-			[ "$1" = "[0-9]{1,2}\_[0-9]{1,2}" ] && echo "$1" ; CustomAspectRatio="$1" ; shift; continue;
-			echo "Invalid argument for Aspect Ratio"
-			echo -e "$PrettygrubHelp"
-			exit;
+			if [ "$1" = "[0-9]{1,2}\_[0-9]{1,2}" ]; then
+				echo "$1"
+				CustomAspectRatio="$1"
+				shift
+			else
+				echo "Invalid argument for Aspect Ratio"
+				echo -e "$PrettygrubHelp"
+				exit;
+			fi
 			;;
 		-r|--resolution) shift
-			[ "$1" = "[0-9]{3,4}x[0-9]{3,4}" ] && CustomGrubResolution="$1" ; shift; continue
-			echo "Invalid argument for Grub Resolution"
-			echo -e "$PrettygrubHelp"
-			exit;
+			if [ "$1" = "[0-9]{3,4}x[0-9]{3,4}" ]; then
+				CustomGrubResolution="$1"
+				shift
+			else
+				echo "Invalid argument for Grub Resolution"
+				echo -e "$PrettygrubHelp"
+				exit;
+			fi
 			;;
-		-g|--horizontal-grub) shift
-			[ "${1+defined}" ] && [ ! "${1#-}" = "-" ] &&  HorizontalGrub="$1"
-			shift ; continue;
-			echo "Invalid argument for Horizontal Grub"
+		-p|--prettygrub) HorizontalGrub="true"
 			shift
+			;;
+		-x|--scripted) shift
+			if [ "${1+defined}" ] && [ ! "${1#-}" = "-" ]; then
+				AutoActions="$1"
+				shift
+			else
+				AutoActions="PG_DefaultAcions"
+			fi
 			;;
 		*)	echo "Unknown argument"
 			echo "Exiting..."
 			exit;;
 	esac
-
 done
 
 # Configuration paths
-DefaultTemplate="$SystemDataPath"/templates/default
+DefaultTemplate="default"
+if  [ -d "$LocalDataPath"/templates/"$DefaultTemplate" ] && DefaultTemplate="$LocalDataPath"/templates/"$DefaultTemplate" || DefaultTemplate="$SystemDataPath"/templates/"$DefaultTemplate"
 if  [ -d "$LocalDataPath"/templates/"$PGTemplate" ] ; then
 	Template="$LocalDataPath"/templates/"$PGTemplate"
 elif [ -d "$SystemDataPath"/templates/"$PGTemplate" ]; then
@@ -201,7 +209,7 @@ else
 	exit;
 fi
 # Template="$LocalDataPath"/templates/"$PGTemplate"
-DefaultResources="$SystemDataPath"/resources
+DefaultResources="$DefaultTemplate"/resources
 Resources="$Template"/resources
 
 echo "Transforming " $Template
