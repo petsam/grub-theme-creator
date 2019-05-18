@@ -28,7 +28,8 @@ if (( $(id -u) == 0 )); then
     echo "The script is run as root"
 fi
 
-PrettygrubConfigurationPath="/home/kpetros/codehub/PrettyGrubTemplates"
+SystemDataPath=/usr/share/prettygrub
+LocalDataPath=${XDG_DATA_HOME:-$HOME/.local/share}/prettygrub
 
 # Help message
 PrettygrubHelp="PrettyGrub will create a grub theme based on provided settings,
@@ -40,6 +41,8 @@ PrettygrubHelp="PrettyGrub will create a grub theme based on provided settings,
 
 PrettygrubHeading="
 #### Automatically created grub theme by PrettyGrub ####
+# PrettyGrub GRUB2 gfxmenu by @petsam
+# Designed for many resolutions
 "
 
 function FileExists {
@@ -57,8 +60,13 @@ fi
 
 # Create work directory
 function CreateWorkDir {
-	DateSuffix=$(date +%s)
-	if [ -w /tmp ];then
+	DateSuffix="pg-"$(date +%s)
+	if [ ! -z "$TMPDIR" ];then
+		echo "TMPDIR =" $TMPDIR
+		WorkDir="$TMPDIR"/prettygrub-"$DateSuffix"
+		echo $WorkDir
+		exit;
+	elif [ -d /tmp ];then
 		WorkDir=/tmp/prettygrub-"$DateSuffix"
 	else
 		WorkDir=$HOME/.local/tmp/prettygrub-"$DateSuffix"
@@ -77,94 +85,129 @@ SettingName=$1
 shift
 ResourceSetting=$*
 CurrentResource=""
-
-if [ "$ResourceType" != "SETTING" ] ; then
+if [ "$ResourceType" != "SETTING" ] && [ "$ResourceSetting" != "" ]; then
 	if [ "$ResourceType" = "fonts" ]; then
 		CurrentSetting=$(echo $ResourceSetting | cut -d, -f2,3,4 | tr -d \")
-		#DefaultSetting=$(grep ^$1 "$PrettygrubConfigurationPath/templates/default.conf" | cut -d: -f2,3,4,5,6 | cut -d, -f2 | tr -d \")
 		CurrentResource=$(echo $ResourceSetting | cut -d, -f1 | tr -d \")
-		#DefaultResource=$(grep ^$1 "$PrettygrubConfigurationPath/templates/default.conf" | cut -d: -f2,3,4,5,6 | cut -d, -f1 | tr -d \")
-#		echo "FontResourse" $CurrentResource
-#		echo "FontSetting" $CurrentSetting
 	else
 		CurrentSetting=$ResourceSetting
-		#DefaultSetting=$(grep ^$1 "$PrettygrubConfigurationPath/templates/default.conf" | cut -d: -f2 | tr -d \")
 		CurrentResource=$ResourceSetting
-		#DefaultResource=$DefaultSetting
-#		echo "Resourse" $CurrentResource
-#		echo "Setting" $CurrentSetting
 	fi
-	#if [ -f "$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource ]
-	#CurrentResource="$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource
-	#CurrentResource="$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource
-	#FileExists $CurrentResource
-#	echo "FinalResource" $CurrentResource
-	#if [ $? -ne 0 ]; then
-	#	echo "$CurrentResource" was not found. Using default resource.
-	#	CurrentResource=${2:+"$2"/}$DefaultResource
-	#	CurrentSetting=$DefaultSetting
-	#fi
-	if echo $CurrentResource | grep -o \* 2>/dev/null ; then
-		cp -r "$Resources"/${CurrentResource%'*'*}*${CurrentResource#*'*'} "$WorkDir"/ 2>/dev/null
-		#ls "$Resources"/${CurrentResource%'*'*}*${CurrentResource#*'*'} 2>/dev/null
-		if [ $? -ne 0 ]; then
-			echo "$CurrentResource" was not found. Using default resource.
-			cp -r "$DefaultResources"/${ResourceType:+"$ResourceType"/}${CurrentResource%'*'*}*${CurrentResource#*'*'} "$WorkDir"/
-		#	ls "$DefaultResources"/${ResourceType:+"$ResourceType"/}${CurrentResource%'*'*}*${CurrentResource#*'*'} 2>/dev/null
+	if (echo $CurrentResource | grep -o \* 2>/dev/null) ; then
+		if $(ls "$Resources"/${CurrentResource%'*'*}*${CurrentResource#*'*'}  2>/dev/null) ; then
+			CurrentResource="$Resources"/${CurrentResource%'*'*}*${CurrentResource#*'*'}
+		#elif $(ls "$DefaultResources"/${ResourceType:+"$ResourceType"/}"${CurrentResource%'*'*}"*"${CurrentResource#*'*'}"  2>/dev/null) ; then
+		#	CurrentResource="$DefaultResources"/${ResourceType:+"$ResourceType"/}${CurrentResource%'*'*}*${CurrentResource#*'*'}
+		else
+			#echo "Custom resources"
+			#ls "$Resources"/${CurrentResource%'*'*}*${CurrentResource#*'*'}
+			#echo "Default resources folder"
+			#ls "$DefaultResources"/${ResourceType:+"$ResourceType"/}
+			#echo "Default resources"
+			# ls "$DefaultResources"/${ResourceType:+"$ResourceType"/}"${CurrentResource%'*'*}"*"${CurrentResource#*'*'}"
+			echo "Could not find " $CurrentResource
+			CurrentResource="$DefaultResources"/${ResourceType:+"$ResourceType"/}${CurrentResource%'*'*}*${CurrentResource#*'*'}
+			#return 0;
 		fi
 	else
-		cp -r "$Resources"/$CurrentResource "$WorkDir"/ 2>/dev/null
-		if [ $? -ne 0 ]; then
-			echo "$CurrentResource" was not found. Using default resource.
-			cp -r "$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource "$WorkDir"/
-		#	ls "$DefaultResources"/${ResourceType:+"$ResourceType"/}${CurrentResource%'*'*}*${CurrentResource#*'*'} 2>/dev/null
+		if [ -d "$Resources"/$CurrentResource ] || [ -r "$Resources"/$CurrentResource ]; then
+			echo "Found " "$Resources"/$CurrentResource
+			CurrentResource="$Resources"/$CurrentResource
+		elif [ -d "$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource ] || [ -r "$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource ]; then
+			echo "Using default" "$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource
+			CurrentResource="$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource
+#		elif [ -r "$Resources"/$CurrentResource ]; then
+#			echo "Found " "$Resources"/$CurrentResource
+#			CurrentResource=$CurrentResource
+#		elif [ -r "$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource ]; then
+#			echo "Using default" "$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource
+#			CurrentResource="$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource
+		else
+			echo "Could not find " $CurrentResource
+			return 0;
 		fi
-
+	fi
+	if [ "$ResourceType" = "icons" ]; then
+		mkdir "$WorkDir"/icons
+		for DistroIcon in $(ls $CurrentResource/*); do
+			# echo "Icon " "$DistroIcon"
+			convert "$DistroIcon" -resize "$TopMenuIconWidth" -background None -gravity South -extent ${TopMenuIconWidth}x${TopMenuIconHeight} "$WorkDir"/icons/${DistroIcon##*\/} 2>/dev/null
+		done
+	else
+		cp -r $CurrentResource "$WorkDir"/ 2>/dev/null
 	fi
 
-#	echo "Setting" $CurrentSetting
 else
 	CurrentSetting=$ResourceSetting
-#	echo "Setting" $CurrentSetting
 fi
 
-## TODO: check if Parameter is empty and set the default
-sed -i 's/'"$SettingName"'/'"$CurrentSetting"'/g' "$WorkDir"/theme.txt
-grep -F "$CurrentSetting" "$WorkDir"/theme.txt
+## TODO: check if Parameter is empty and set the default DONE
+if [ "$CurrentSetting" = "" ]; then
+	sed -i '/'"$SettingName"'/d' "$WorkDir"/theme.txt
+else
+	sed -i 's/'"$SettingName"'/'"$CurrentSetting"'/g' "$WorkDir"/theme.txt
+fi
+# grep -F "$CurrentSetting" "$WorkDir"/theme.txt
 }
 
 # Check for given command line parameters
 
-#CustomCfg=false
-if [ $# -eq 0 ]; then
-	PGTemplate="default"
-elif [ $1 = "-h" ] || [ $1 = "--help" ]; then
-	echo -e "$PrettygrubHelp"
-	exit;
-elif [ $1 = "-t" ] || [ $1 = "--template" ]; then
-	shift
-	PGTemplate="$1"
+while [ "${1+defined}" ]; do
+#  echo "$1"
+#  shift
+	case "$1" in
+#if [ $# -eq 0 ]; then
+#	PGTemplate="default"
+		-h|--help) echo -e "$PrettygrubHelp"
+			exit;
+			;;
+		-t|--template) shift
+			[ "${1+defined}" ] && [ ! "${1#-}" = "-" ] && PGTemplate="${1}" || PGTemplate="default"
+			shift
+			;;
+		-a|--aspectratio) shift
+			[ "$1" = "[0-9]{1,2}\_[0-9]{1,2}" ] && echo "$1" ; CustomAspectRatio="$1" ; shift; continue;
+			echo "Invalid argument for Aspect Ratio"
+			echo -e "$PrettygrubHelp"
+			exit;
+			;;
+		-r|--resolution) shift
+			[ "$1" = "[0-9]{3,4}x[0-9]{3,4}" ] && CustomGrubResolution="$1" ; shift; continue
+			echo "Invalid argument for Grub Resolution"
+			echo -e "$PrettygrubHelp"
+			exit;
+			;;
+		-g|--horizontal-grub) shift
+			[ "${1+defined}" ] && [ ! "${1#-}" = "-" ] &&  HorizontalGrub="$1"
+			shift ; continue;
+			echo "Invalid argument for Horizontal Grub"
+			shift
+			;;
+		*)	echo "Unknown argument"
+			echo "Exiting..."
+			exit;;
+	esac
+
+done
+
+# Configuration paths
+DefaultTemplate="$SystemDataPath"/templates/default
+if  [ -d "$LocalDataPath"/templates/"$PGTemplate" ] ; then
+	Template="$LocalDataPath"/templates/"$PGTemplate"
+elif [ -d "$SystemDataPath"/templates/"$PGTemplate" ]; then
+	Template="$SystemDataPath"/templates/"$PGTemplate"
 else
-	echo "Unknown argument"
-	echo "Exiting..."
+	echo "Template "$PGTemplate" is missing. Exiting..."
 	exit;
 fi
-
-#TemplateConf
-DefaultTemplate="$PrettygrubConfigurationPath"/templates/prettygrub
-Template="$PrettygrubConfigurationPath"/templates/"$PGTemplate"
-#TemplateTxtFile="$Template"/theme.txt
-DefaultResources="$PrettygrubConfigurationPath"/resources
+# Template="$LocalDataPath"/templates/"$PGTemplate"
+DefaultResources="$SystemDataPath"/resources
 Resources="$Template"/resources
 
 echo "Transforming " $Template
 # "with" $TemplateTxtFile
 
 
-if  ! ( FileExists $TemplateConf); then
-	echo "Template file is missing. Exiting..."
-	exit;
-fi
 
 CreateWorkDir
 echo  $PrettygrubHeading > "$WorkDir"/theme.txt
@@ -180,12 +223,14 @@ if [ -r "$Template"/default.conf ]; then . "$Template"/default.conf; fi
 if [ ! $CustomAspectRatio = "" ]; then AspectRatio=$CustomAspectRatio; fi
 if [ ! $CustomGrubResolution = "" ]; then GrubResolution=$CustomGrubResolution; fi
 if [ -r "$DefaultTemplate"/"$AspectRatio".conf ]; then . "$DefaultTemplate"/"$AspectRatio".conf; fi
-if [ -r "$Template"/"$AspectRatio".conf ]; then . "$Template"/"$AspectRatio".conf; fi
 if [ -r "$DefaultTemplate"/"$GrubResolution".conf ]; then . "$DefaultTemplate"/"$GrubResolution".conf ; fi
+if [ -r "$Template"/default.conf ]; then . "$Template"/default.conf; fi
+if [ -r "$Template"/"$AspectRatio".conf ]; then . "$Template"/"$AspectRatio".conf; fi
 if [ -r "$Template"/"$GrubResolution".conf ]; then . "$Template"/"$GrubResolution".conf ; fi
 
 
-# Set and copy resources
+
+# Write settings and copy resources to theme temp folder
 
 PickResources "wallpapers" "PG_WallpaperImage" $WallpaperImage
 PickResources "fonts" "PG_TerminalFont" $TerminalFont
@@ -199,7 +244,6 @@ PickResources "clock" "PG_ClockCenterImage" $ClockCenterImage
 PickResources "clock" "PG_ClockTickImage" $ClockTickImage
 PickResources "fonts" "PG_HelpFont" $HelpFont
 
-
 PickResources "SETTING" "PG_DesktopColor" $DesktopColor
 PickResources "SETTING" "PG_TopmenuColor" $TopmenuColor
 PickResources "SETTING" "PG_MenuItemColor" $MenuItemColor
@@ -207,48 +251,24 @@ PickResources "SETTING" "PG_SelectedItemColor" $SelectedItemColor
 PickResources "SETTING" "PG_HelpTextLength" $HelpTextLength
 PickResources "SETTING" "PG_HelpColor" $HelpColor
 
+PickResources "SETTING" "PG_TopMenuIconHeight" $TopMenuIconHeight
+PickResources "SETTING" "PG_TopMenuIconWidth" $TopMenuIconWidth
+PickResources "SETTING" "PG_ClockWidth" $ClockWidth
+PickResources "SETTING" "PG_ClockHeight" $ClockHeight
+
 PickResources "icons" "PG_DistroIcons" $DistroIcons
 PickResources "logos" "PG_PGLogo" $PGLogo
 
-mkdir "$PrettygrubConfigurationPath"/themes/"$PGTemplate"
-cp -r "$WorkDir"/* "$PrettygrubConfigurationPath"/themes/"$PGTemplate"
+if [ -d "$LocalDataPath"/themes/"$PGTemplate" ]; then
+	i=1
+	until ! [ -d "$LocalDataPath"/themes/"$PGTemplate"-"$i" ]; do (( i++ )); done
+	PGTemplate="$PGTemplate"-"$i"
+fi
+mkdir -p "$LocalDataPath"/themes/"$PGTemplate"
+cp -r "$WorkDir"/* "$LocalDataPath"/themes/"$PGTemplate"
+if [ "$?" -eq 0 ]; then echo "
+The new grub theme has been succesfully created and saved as " "$PGTemplate"
+	[ "$HorizontalGrub" ] && echo "Horizontal-grub function not implemented, yet!"
+fi
 
 exit;
-
-case $1 in
-	WallpaperImage)
-
-	;;
-	DesktopColor)
-	;;
-	TerminalFont)
-	;;
-	TerminalBitmaps)
-	;;
-	TopmenuColor)
-	;;
-	MenuItemFont)
-	;;
-	MenuItemColor)
-	;;
-	SelectedItemFont)
-	;;
-	SelectedItemColor)
-	;;
-	MenuBitmaps)
-	;;
-	ItemBitmaps)
-	;;
-	SelectedBitmaps)
-	;;
-	ClockCenterImage)
-	;;
-	ClockTickImage)
-	;;
-	HelpTextLength)
-	;;
-	HelpFont)
-	;;
-	HelpFontColor)
-	;;
-esac
