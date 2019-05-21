@@ -26,8 +26,12 @@
 
 # Check if run as root or sudo
 if (( $(id -u) == 0 )); then
-    echo "The script is run as root"
+	IAMROOT="true"
+	echo "The script is run as root"
 fi
+#[ $IAMROOT ] && echo "I am Root" || echo "I am NOT Root"
+RealUser=$(whoami)
+#exit;
 
 SystemDataPath=/usr/share/prettygrub
 LocalDataPath=${XDG_DATA_HOME:-$HOME/.local/share}/prettygrub
@@ -36,8 +40,8 @@ LocalDataPath=${XDG_DATA_HOME:-$HOME/.local/share}/prettygrub
 PrettygrubHelp="PrettyGrub will create a grub theme based on provided settings,
     compatible with horizontal-grub script, to conform a theme with fake-horizontal style.
     Usage:
-    prewttygrub (-t | --template) [TEMPLATE] If TEMPLATE is ommited, default template will be used
-    prewttygrub (-h | --help) This help information message"
+    prettygrub (-t | --template) [TEMPLATE] If TEMPLATE is ommited, default template will be used
+    prettygrub (-h | --help) This help information message"
 
 
 PrettygrubHeading="
@@ -142,64 +146,65 @@ fi
 
 # Check for given command line parameters
 
-while [ "${1+defined}" ]; do
-#  echo "$1"
-#  shift
-	case "$1" in
-#if [ $# -eq 0 ]; then
-#	PGTemplate="default"
-		-h|--help) echo -e "$PrettygrubHelp"
-			exit;
-			;;
-		-t|--template) shift
-			if [ "${1+defined}" ] && [ ! "${1#-}" = "-" ]; then
-				PGTemplate="$1"
-				shift
-			else
-				PGTemplate="default"
-			fi
-			;;
-		-a|--aspectratio) shift
-			if [ "$1" = "[0-9]{1,2}\_[0-9]{1,2}" ]; then
-				echo "$1"
-				CustomAspectRatio="$1"
-				shift
-			else
-				echo "Invalid argument for Aspect Ratio"
-				echo -e "$PrettygrubHelp"
+if [ $# -eq 0 ]; then
+	PGTemplate="default"
+else
+	while [ "${1+defined}" ]; do
+	#  echo "$1"
+	#  shift
+		case "$1" in
+			-h|--help) echo -e "$PrettygrubHelp"
 				exit;
-			fi
-			;;
-		-r|--resolution) shift
-			if [ "$1" = "[0-9]{3,4}x[0-9]{3,4}" ]; then
-				CustomGrubResolution="$1"
+				;;
+			-t|--template) shift
+				if [ "${1+defined}" ] && [ ! "${1#-}" = "-" ]; then
+					PGTemplate="$1"
+					shift
+				else
+					PGTemplate="default"
+				fi
+				;;
+			-a|--aspectratio) shift
+				if [ "$1" = "[0-9]{1,2}\_[0-9]{1,2}" ]; then
+					echo "$1"
+					CustomAspectRatio="$1"
+					shift
+				else
+					echo "Invalid argument for Aspect Ratio"
+					echo -e "$PrettygrubHelp"
+					exit;
+				fi
+				;;
+			-r|--resolution) shift
+				if [ "$1" = "[0-9]{3,4}x[0-9]{3,4}" ]; then
+					CustomGrubResolution="$1"
+					shift
+				else
+					echo "Invalid argument for Grub Resolution"
+					echo -e "$PrettygrubHelp"
+					exit;
+				fi
+				;;
+			-p|--prettygrub) CustomHorizontalGrub="true"
 				shift
-			else
-				echo "Invalid argument for Grub Resolution"
-				echo -e "$PrettygrubHelp"
-				exit;
-			fi
-			;;
-		-p|--prettygrub) HorizontalGrub="true"
-			shift
-			;;
-		-x|--scripted) shift
-			if [ "${1+defined}" ] && [ ! "${1#-}" = "-" ]; then
-				AutoActions="$1"
-				shift
-			else
-				AutoActions="PG_DefaultAcions"
-			fi
-			;;
-		*)	echo "Unknown argument"
-			echo "Exiting..."
-			exit;;
-	esac
-done
+				;;
+			-x|--scripted) shift
+				if [ "${1+defined}" ] && [ ! "${1#-}" = "-" ]; then
+					CustomAutoActions="$1"
+					shift
+				fi
+				;;
+			*)	echo "Unknown argument"
+				echo "Exiting..."
+				exit;;
+		esac
+	done
+fi
 
 # Configuration paths
 DefaultTemplate="default"
-if  [ -d "$LocalDataPath"/templates/"$DefaultTemplate" ] && DefaultTemplate="$LocalDataPath"/templates/"$DefaultTemplate" || DefaultTemplate="$SystemDataPath"/templates/"$DefaultTemplate"
+[ -d "$LocalDataPath"/templates/"$DefaultTemplate" ] && DefaultTemplate="$LocalDataPath"/templates/"$DefaultTemplate" || DefaultTemplate="$SystemDataPath"/templates/"$DefaultTemplate"
+echo "Default Template" "$DefaultTemplate"
 if  [ -d "$LocalDataPath"/templates/"$PGTemplate" ] ; then
 	Template="$LocalDataPath"/templates/"$PGTemplate"
 elif [ -d "$SystemDataPath"/templates/"$PGTemplate" ]; then
@@ -208,17 +213,16 @@ else
 	echo "Template "$PGTemplate" is missing. Exiting..."
 	exit;
 fi
+echo "Template" "$Template"
+
 # Template="$LocalDataPath"/templates/"$PGTemplate"
 DefaultResources="$DefaultTemplate"/resources
 Resources="$Template"/resources
 
 echo "Transforming " $Template
-# "with" $TemplateTxtFile
-
-
 
 CreateWorkDir
-echo  $PrettygrubHeading > "$WorkDir"/theme.txt
+echo -e "$PrettygrubHeading" > "$WorkDir"/theme.txt
 if  FileExists "$Template"/theme.txt ; then
 	cat "$Template"/theme.txt >> "$WorkDir"/theme.txt
 else
@@ -236,47 +240,173 @@ if [ -r "$Template"/default.conf ]; then . "$Template"/default.conf; fi
 if [ -r "$Template"/"$AspectRatio".conf ]; then . "$Template"/"$AspectRatio".conf; fi
 if [ -r "$Template"/"$GrubResolution".conf ]; then . "$Template"/"$GrubResolution".conf ; fi
 
-
-
+# Apply command-line overrides
+HorizontalGrub=${CustomHorizontalGrub-$HorizontalGrub}
+AutoActions=${CustomAutoActions-$AutoActions}
 # Write settings and copy resources to theme temp folder
 
+PickResources "logos" "PG_PGLogo" $PGLogo
 PickResources "wallpapers" "PG_WallpaperImage" $WallpaperImage
-PickResources "fonts" "PG_TerminalFont" $TerminalFont
-PickResources "terminal" "PG_TerminalBitmaps" $TerminalBitmaps
-PickResources "fonts" "PG_MenuItemFont" $MenuItemFont
-PickResources "fonts" "PG_SelectedItemFont" $SelectedItemFont
-PickResources "menu" "PG_MenuBitmaps" $MenuBitmaps
-PickResources "menuitem" "PG_ItemBitmaps" $ItemBitmaps
-PickResources "selected" "PG_SelectedBitmaps" $SelectedBitmaps
+PickResources "SETTING" "PG_HelpTextLength" $HelpTextLength
+
+PickResources "icons" "PG_DistroIcons" $DistroIcons
+
+PickResources "menu" "PG_MainMenuBitmaps" $MainMenuBitmaps
+PickResources "menuitem" "PG_MainMenuItemBitmaps" $MainMenuItemBitmaps
+PickResources "selected" "PG_MainMenuSelectedBitmaps" $MainMenuSelectedBitmaps
+
 PickResources "clock" "PG_ClockCenterImage" $ClockCenterImage
 PickResources "clock" "PG_ClockTickImage" $ClockTickImage
-PickResources "fonts" "PG_HelpFont" $HelpFont
-
-PickResources "SETTING" "PG_DesktopColor" $DesktopColor
-PickResources "SETTING" "PG_TopmenuColor" $TopmenuColor
-PickResources "SETTING" "PG_MenuItemColor" $MenuItemColor
-PickResources "SETTING" "PG_SelectedItemColor" $SelectedItemColor
-PickResources "SETTING" "PG_HelpTextLength" $HelpTextLength
-PickResources "SETTING" "PG_HelpColor" $HelpColor
-
-PickResources "SETTING" "PG_TopMenuIconHeight" $TopMenuIconHeight
-PickResources "SETTING" "PG_TopMenuIconWidth" $TopMenuIconWidth
 PickResources "SETTING" "PG_ClockWidth" $ClockWidth
 PickResources "SETTING" "PG_ClockHeight" $ClockHeight
 
-PickResources "icons" "PG_DistroIcons" $DistroIcons
-PickResources "logos" "PG_PGLogo" $PGLogo
+PickResources "fonts" "PG_TerminalFont" $TerminalFont
+PickResources "terminal" "PG_TerminalBitmaps" $TerminalBitmaps
+PickResources "fonts" "PG_MainMenuItemFont" $MainMenuItemFont
+PickResources "fonts" "PG_MainMenuSelectedItemFont" $MainMenuSelectedItemFont
+PickResources "fonts" "PG_HelpFont" $HelpFont
 
-if [ -d "$LocalDataPath"/themes/"$PGTemplate" ]; then
+PickResources "SETTING" "PG_MainMenuLeft" $MainMenuLeft
+PickResources "SETTING" "PG_MainMenuTop" $MainMenuTop
+PickResources "SETTING" "PG_MainMenuHeight" $MainMenuHeight
+PickResources "SETTING" "PG_MainMenuWidth" $MainMenuWidth
+PickResources "SETTING" "PG_MainMenuItemHeight" $MainMenuItemHeight
+PickResources "SETTING" "PG_MainMenuItemSpacing" $MainMenuItemSpacing
+PickResources "SETTING" "PG_MainMenuIconHeight" $MainMenuIconHeight
+PickResources "SETTING" "PG_MainMenuIconWidth" $MainMenuIconWidth
+PickResources "SETTING" "PG_MainMenuItemIconSpace" $MainMenuItemIconSpace
+#PG_MainMenuItemHeight
+PickResources "SETTING" "PG_ClockTop" $ClockTop
+PickResources "SETTING" "PG_ClockLeft" $ClockLeft
+PickResources "SETTING" "PG_ClockNumTicks" $ClockNumTicks
+PickResources "SETTING" "PG_ClockTicksDisappear" $ClockTicksDisappear
+
+PickResources "SETTING" "PG_HelpTop" $HelpTop
+PickResources "SETTING" "PG_HelpLeft" $HelpLeft
+PickResources "SETTING" "PG_HelpWidth" $HelpWidth
+PickResources "SETTING" "PG_HelpHeight" $HelpHeight
+PickResources "SETTING" "PG_HelpAlign" $HelpAlign
+
+PickResources "SETTING" "PG_LogoTop" $LogoTop
+PickResources "SETTING" "PG_LogoLeft" $LogoLeft
+PickResources "SETTING" "PG_LogoWidth" $LogoWidth
+PickResources "SETTING" "PG_LogoHeight" $LogoHeight
+PickResources "SETTING" "PG_TopMenuIconHeight" $TopMenuIconHeight
+PickResources "SETTING" "PG_TopMenuIconWidth" $TopMenuIconWidth
+PickResources "SETTING" "PG_TopMenuLeft" $TopMenuLeft
+PickResources "SETTING" "PG_TopMenuTop" $TopMenuTop
+PickResources "SETTING" "PG_TopMenuWidth" $TopMenuWidth
+PickResources "SETTING" "PG_TopMenuHeight" $TopMenuHeight
+
+PickResources "SETTING" "PG_DesktopColor" $DesktopColor
+PickResources "SETTING" "PG_TopMenuColor" $TopMenuColor
+PickResources "SETTING" "PG_MainMenuItemColor" $MainMenuItemColor
+PickResources "SETTING" "PG_MainMenuSelectedItemColor" $MainMenuSelectedItemColor
+PickResources "SETTING" "PG_HelpColor" $HelpColor
+
+
+function PGSaveTheme {
+if [ "$1" = "local" ]; then
+	ThemeFolder="$LocalDataPath"/themes
+elif [ "$1" = "system" ]; then
+	ThemeFolder="$SystemDataPath"/themes
+else
+	return 1;
+fi
+NewGrubTheme="$PGTemplate"
+if [ -d "$ThemeFolder"/"$NewGrubTheme" ]; then
 	i=1
-	until ! [ -d "$LocalDataPath"/themes/"$PGTemplate"-"$i" ]; do (( i++ )); done
-	PGTemplate="$PGTemplate"-"$i"
+	until ! [ -d "$LocalDataPath"/themes/"$NewGrubTheme"-"$i" ]; do (( i++ )); done
+	NewGrubTheme="$NewGrubTheme"-"$i"
 fi
-mkdir -p "$LocalDataPath"/themes/"$PGTemplate"
-cp -r "$WorkDir"/* "$LocalDataPath"/themes/"$PGTemplate"
-if [ "$?" -eq 0 ]; then echo "
-The new grub theme has been succesfully created and saved as " "$PGTemplate"
-	[ "$HorizontalGrub" ] && echo "Horizontal-grub function not implemented, yet!"
+if [ ! $IAMROOT ] &&  [ "$1" = "system" ]; then
+	sudo mkdir -p "$ThemeFolder"/"$NewGrubTheme"
+	sudo cp -r "$WorkDir"/* "$ThemeFolder"/"$NewGrubTheme"/
+else
+	mkdir -p "$ThemeFolder"/"$NewGrubTheme"
+	cp -r "$WorkDir"/* "$ThemeFolder"/"$NewGrubTheme"/
 fi
+if [ "$?" -ne 0 ]; then
+	echo "Theme folder creation failed!..."
+	return 1;
+fi
+echo "
+The new grub theme has been succesfully created and saved at " "$ThemeFolder"/"$NewGrubTheme"
+}
 
+function PGSetActiveTheme {
+	#if [ "$1" = "normal" ]; then
+		GrubThemesFolder=/boot/grub/themes
+	#elif [ "$1" = "system" ]; then
+		#ThemeFolder="$SystemDataPath"/themes
+	#else
+	#	return 1;
+	#fi
+	NewActiveGrubTheme="$PGTemplate"
+	if [ -d "$GrubThemesFolder"/"$NewActiveGrubTheme" ]; then
+		i=1
+		until ! [ -d "$GrubThemesFolder"/"$NewActiveGrubTheme"-"$i" ]; do (( i++ )); done
+		NewActiveGrubTheme="$NewActiveGrubTheme"-"$i"
+	fi
+	ActiveGrubTheme=$(grep -e "^GRUB_THEME=" /etc/default/grub | cut -d= -f2)
+	ActiveGrubTheme=${ActiveGrubTheme%"/theme.txt"}
+	echo $ActiveGrubTheme
+	echo "$GrubThemesFolder"/"$NewActiveGrubTheme"/theme.txt
+## TODO confirm sed command to edit new theme setting for grub (before run grub)
+	if [ ! $IAMROOT ]; then
+		sudo mkdir -p "$GrubThemesFolder"/"$NewActiveGrubTheme"
+		sudo cp -r  "$ThemeFolder"/"$NewGrubTheme"/* "$GrubThemesFolder"/"$NewActiveGrubTheme"/
+		if ! [ "$ActiveGrubTheme" = "" ] && ! [ "$ActiveGrubTheme" = "$NewActiveGrubTheme" ]; then
+			#sudo sed -i '/^GRUB_THEME=/ s/[[:print:]]*/GRUB_THEME=\"'$GrubThemesFolder/$NewActiveGrubTheme'/theme.txt\"/ ' /etc/default/grub
+			sudo sed  -i -E '\%^\s{0,}GRUB_THEME=%c GRUB_THEME="'$GrubThemesFolder/$NewActiveGrubTheme'/theme.txt"' /etc/default/grub
+		else
+			echo "$GrubThemesFolder"/"$NewActiveGrubTheme"/theme.txt
+			sudo echo GRUB_THEME="$GrubThemesFolder"/"$NewActiveGrubTheme"/theme.txt >>  /etc/default/grub
+		fi
+		grep "GRUB_THEME=" /etc/default/grub
+		#exit;
+		sudo grub-mkconfig -o /boot/grub/grub.cfg
+		[ $HorizontalGrub = "true" ] && sudo horizontal-grub
+	else
+		mkdir -p "$GrubThemesFolder"/"$NewActiveGrubTheme"
+		cp -r  "$ThemeFolder"/"$NewGrubTheme"/* "$GrubThemesFolder"/"$NewActiveGrubTheme"/
+		if ! [ "$ActiveGrubTheme" = "" ] && ! [ "$ActiveGrubTheme" = "$NewActiveGrubTheme" ]; then
+			#sudo sed -i '/^GRUB_THEME=/ s/[[:print:]]*/GRUB_THEME=\"'$GrubThemesFolder/$NewActiveGrubTheme'/theme.txt\"/ ' /etc/default/grub
+			sed  -i -E '\%^\s{0,}GRUB_THEME=%c GRUB_THEME="'$GrubThemesFolder/$NewActiveGrubTheme'/theme.txt"' /etc/default/grub
+		else
+			echo "$GrubThemesFolder"/"$NewActiveGrubTheme"/theme.txt
+			echo GRUB_THEME="$GrubThemesFolder"/"$NewActiveGrubTheme"/theme.txt >>  /etc/default/grub
+		fi
+		grep "GRUB_THEME=" /etc/default/grub
+		#exit;
+		grub-mkconfig -o /boot/grub/grub.cfg
+		[ $HorizontalGrub = "true" ] && horizontal-grub
+	fi
+	ActiveGrubTheme=$(grep -e "^GRUB_THEME=" /etc/default/grub | cut -d= -f2)
+	if ! [ $ActiveGrubTheme = \""$GrubThemesFolder"/"$NewActiveGrubTheme"/theme.txt\" ]; then
+		echo "Theme activation failed!..."
+		echo "Active theme is " $ActiveGrubTheme
+		return 1;
+	fi
+	echo "
+	The new grub theme has been succesfully activated and saved at " "$GrubThemesFolder"/"$ActiveGrubTheme"
+}
+
+
+#  SaveLocal, SaveSystem, SetActiveTheme
+
+case "${AutoActions-"SaveLocal"}" in
+	SaveLocal) PGSaveTheme "local"
+	;;
+	SaveSystem) PGSaveTheme "system"
+	;;
+	SetActiveTheme) PGSaveTheme "system"
+		[ "$?" -ne 0 ] && ( echo "Failed to save theme at system folder" \c ; exit; )
+		[ $HorizontalGrub = "true" ] && [ ! $(which horizontal-grub) ] && echo "horizontal-grub was not found. Install it and set grub theme manually." \c
+		PGSetActiveTheme
+	;;
+	*) echo "No actions defined"
+	;;
+	esac
+# [ $? -eq 0 ] && ThemeSaved=true || echo "Error saving theme. Error Number " "$?"
 exit;
