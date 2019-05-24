@@ -101,8 +101,10 @@ function BatchCopy {
 		BatchFiles=""
 		CurrentResourceLeft=${1%\**}
 		CurrentResourceRight=${1#*\*}
-		BatchFiles=($(ls "$2"${1/*/\*}))
-		echo ${BatchFiles[@]}  # ==OK==
+		BatchFiles=($(ls "$2"${1/*/\*} 2>/dev/null))
+		if [ -z "${#BatchFiles[@]}" ]; then
+			return 0;
+		fi
 #		#ls "$Resources"/"${CurrentResource%\**}"*"${CurrentResource#*\*}"
 		fcopied=0
 		for bFile in ${BatchFiles[@]}
@@ -118,7 +120,6 @@ function BatchCopy {
 					echo "Copying " "$2""$bFileName"
 				fi
 			done
-		echo $fcopied
 		return $fcopied;
 }
 
@@ -139,15 +140,17 @@ if [ "$ResourceType" != "SETTING" ] && [ "$ResourceSetting" != "" ]; then
 		CurrentResource=$ResourceSetting
 	fi
 	if ! [ ${CurrentResource#*\*} = $CurrentResource ]; then
-	echo Copying "$CurrentResource" from "$Resources"/
-	BatchCopy "$CurrentResource" "$Resources"/
-	if [ $? = 0 ]; then
-		echo "Using default resource" "$DefaultResources"/${ResourceType:+"$ResourceType"/}
-		BatchCopy $CurrentResource "$DefaultResources"/${ResourceType:+"$ResourceType"/}
-		if [ $? = 0 ]; then
-			echo "Could not find Default Resource. Is something wrong?..."
+		echo Copying "$CurrentResource" from "$Resources"/
+		BatchCopy "$CurrentResource" "$Resources"/
+		BCResult=$?
+		echo $BCResult
+		if [ $BCResult = 0 ]; then
+			echo "Using default resource" "$DefaultResources"/${ResourceType:+"$ResourceType"/}
+			BatchCopy $CurrentResource "$DefaultResources"/${ResourceType:+"$ResourceType"/}
+			if [ $? = 0 ]; then
+				echo "Could not find Default Resource. Is something wrong?..."
+			fi
 		fi
-	fi
 	else
 		if [ -d "$Resources"/$CurrentResource ] || [ -r "$Resources"/$CurrentResource ]; then
 			echo "Found " "$Resources"/$CurrentResource
@@ -163,18 +166,20 @@ if [ "$ResourceType" != "SETTING" ] && [ "$ResourceSetting" != "" ]; then
 	fi
 	if [ "$ResourceType" = "icons" ]; then
 		mkdir "$WorkDir"/icons
-		if [ $HorizontalGrub = "true" ]; then
+		if [ $UseTopMenu = "true" ]; then
+			echo "Converting and copying icons from " $CurrentResource " to " "$WorkDir"/icons
 			for DistroIcon in $(ls $CurrentResource/*); do
 				# echo "Icon " "$DistroIcon"
 				convert "$DistroIcon" -resize "$TopMenuIconWidth" -background None -gravity South -extent ${TopMenuIconWidth}x${TopMenuIconHeight} "$WorkDir"/icons/${DistroIcon##*\/} 2>/dev/null
 			done
 		else
-			cp -r $CurrentResource "$WorkDir"/icons 2>/dev/null
+			echo "Copying icons from " $CurrentResource " to " "$WorkDir"/icons
+			cp -r $CurrentResource/* "$WorkDir"/icons/ 2>/dev/null
 		fi
 	else
 		cp -r $CurrentResource "$WorkDir"/ 2>/dev/null
 	fi
-
+### TODO convert wallpaper, logo and clock image to fit given elements dimensions!!!
 else
 	CurrentSetting=$ResourceSetting
 fi
@@ -286,8 +291,8 @@ fi
 if [ -r "$DefaultTemplate"/default.conf ]; then . "$DefaultTemplate"/default.conf; fi
 if [ -r "$Template"/default.conf ]; then . "$Template"/default.conf; fi
 if [ ! $CustomAspectRatio = "" ]; then AspectRatio=$CustomAspectRatio; fi
-if [ ! $CustomGrubResolution = "" ]; then GrubResolution=$CustomGrubResolution; fi
 if [ -r "$DefaultTemplate"/"$AspectRatio".conf ]; then . "$DefaultTemplate"/"$AspectRatio".conf; fi
+if [ ! $CustomGrubResolution = "" ]; then GrubResolution=$CustomGrubResolution; fi
 if [ -r "$DefaultTemplate"/"$GrubResolution".conf ]; then . "$DefaultTemplate"/"$GrubResolution".conf ; fi
 if [ -r "$Template"/default.conf ]; then . "$Template"/default.conf; fi
 if [ -r "$Template"/"$AspectRatio".conf ]; then . "$Template"/"$AspectRatio".conf; fi
@@ -329,7 +334,6 @@ PickResources "SETTING" "PG_MainMenuItemSpacing" $MainMenuItemSpacing
 PickResources "SETTING" "PG_MainMenuIconHeight" $MainMenuIconHeight
 PickResources "SETTING" "PG_MainMenuIconWidth" $MainMenuIconWidth
 PickResources "SETTING" "PG_MainMenuItemIconSpace" $MainMenuItemIconSpace
-#PG_MainMenuItemHeight
 PickResources "SETTING" "PG_ClockTop" $ClockTop
 PickResources "SETTING" "PG_ClockLeft" $ClockLeft
 PickResources "SETTING" "PG_ClockNumTicks" $ClockNumTicks
@@ -396,7 +400,8 @@ function PGSetActiveTheme {
 	#else
 	#	return 1;
 	#fi
-	NewActiveGrubTheme="$PGTemplate"
+	NewActiveGrubTheme="${PGTemplate/"^default$"/"gtc-theme"}"
+	echo "New theme "$NewActiveGrubTheme" is saved and set active"
 	if [ -d "$GrubThemesFolder"/"$NewActiveGrubTheme" ]; then
 		i=1
 		until ! [ -d "$GrubThemesFolder"/"$NewActiveGrubTheme"-"$i" ]; do (( i++ )); done
@@ -404,8 +409,8 @@ function PGSetActiveTheme {
 	fi
 	ActiveGrubTheme=$(grep -e "^GRUB_THEME=" /etc/default/grub | cut -d= -f2)
 	ActiveGrubTheme=${ActiveGrubTheme%"/theme.txt"}
-	echo $ActiveGrubTheme
-	echo "$GrubThemesFolder"/"$NewActiveGrubTheme"/theme.txt
+	echo "New theme is "$NewActiveGrubTheme
+	#echo "$GrubThemesFolder"/"$NewActiveGrubTheme"/theme.txt
 ## TODO confirm sed command to edit new theme setting for grub (before run grub)
 	if [ ! $IAMROOT ]; then
 		sudo mkdir -p "$GrubThemesFolder"/"$NewActiveGrubTheme"
