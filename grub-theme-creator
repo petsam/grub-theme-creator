@@ -105,15 +105,12 @@ function BatchCopy {
 		if [ -z "${#BatchFiles[@]}" ]; then
 			return 0;
 		fi
-#		#ls "$Resources"/"${CurrentResource%\**}"*"${CurrentResource#*\*}"
 		fcopied=0
 		for bFile in ${BatchFiles[@]}
 			do
 				bFileName=${bFile##*/}
 				FileLeft=${bFileName%_*}"_"
 				FileRight="."${bFileName#*\.}
-#				echo "File     Left" "$FileLeft"  "File     Right" "$FileRight"
-#				echo "Resource Left" "$CurrentResourceLeft"   "Resource Right" "$CurrentResourceRight"
 				if [ $FileLeft = "$CurrentResourceLeft" ] && [ $FileRight = "$CurrentResourceRight" ]; then
 					cp "$2""$bFileName" "$WorkDir"/
 					if [ "$?" -eq 0 ]; then (( fcopied++ )); fi
@@ -123,6 +120,19 @@ function BatchCopy {
 		return $fcopied;
 }
 
+# TransformImage params are the target width and height of the image
+function TransformImage {
+	ImageWidth=$1
+	ImageHeight=${2/"^none$"/""}
+	Image=$3
+	echo "Converting " $Image to $ImageWidth x $ImageHeight to $WorkDir
+	if [ $ImageWidth = "" ] ; then
+		echo "Target image width was not provided. Aborting conversion.."
+		return 2 ;
+	else
+		convert ${Image} -scale ${ImageWidth}${ImageHeight:+"x$ImageHeight"} "$WorkDir"/${Image##*\/} 2>/dev/null
+	fi
+}
 
 function PickResources {
 ResourceType=$1
@@ -143,7 +153,7 @@ if [ "$ResourceType" != "SETTING" ] && [ "$ResourceSetting" != "" ]; then
 		echo Copying "$CurrentResource" from "$Resources"/
 		BatchCopy "$CurrentResource" "$Resources"/
 		BCResult=$?
-		echo $BCResult
+#		echo $BCResult
 		if [ $BCResult = 0 ]; then
 			echo "Using default resource" "$DefaultResources"/${ResourceType:+"$ResourceType"/}
 			BatchCopy $CurrentResource "$DefaultResources"/${ResourceType:+"$ResourceType"/}
@@ -169,17 +179,31 @@ if [ "$ResourceType" != "SETTING" ] && [ "$ResourceSetting" != "" ]; then
 		if [ $UseTopMenu = "true" ]; then
 			echo "Converting and copying icons from " $CurrentResource " to " "$WorkDir"/icons
 			for DistroIcon in $(ls $CurrentResource/*); do
-				# echo "Icon " "$DistroIcon"
 				convert "$DistroIcon" -resize "$TopMenuIconWidth" -background None -gravity South -extent ${TopMenuIconWidth}x${TopMenuIconHeight} "$WorkDir"/icons/${DistroIcon##*\/} 2>/dev/null
 			done
 		else
 			echo "Copying icons from " $CurrentResource " to " "$WorkDir"/icons
 			cp -r $CurrentResource/* "$WorkDir"/icons/ 2>/dev/null
 		fi
+	elif [ "$ResourceType" = "clock" ] || [ "$ResourceType" = "logos" ] || [ "$ResourceType" = "wallpapers" ]; then
+		case $SettingName in
+		PG_WallpaperImage)
+			if [ ! "$GrubResolution" = "" ]; then
+				TransformImage ${GrubResolution%x*} ${GrubResolution#*x} $CurrentResource
+			fi
+		;;
+		PG_PGLogo)TransformImage $LogoWidth $LogoHeight $CurrentResource
+		;;
+		PG_ClockCenterImage)TransformImage $ClockWidth $ClockHeight $CurrentResource
+		;;
+		PG_ClockTickImage)TransformImage $(($ClockWidth/6)) $(($ClockWidth/6)) $CurrentResource
+		;;
+		*)echo "$ResourceType $CurrentResource not found"
+		;;
+		esac
 	else
 		cp -r $CurrentResource "$WorkDir"/ 2>/dev/null
 	fi
-### TODO convert wallpaper, logo and clock image to fit given elements dimensions!!!
 else
 	CurrentSetting=$ResourceSetting
 fi
@@ -198,7 +222,6 @@ if [ $# -eq 0 ]; then
 	PGTemplate="default"
 else
 	while [ "${1+defined}" ]; do
-	#  echo "$1"
 	#  shift
 		case "$1" in
 			-h|--help) echo -e "$PrettygrubHelp"
@@ -213,13 +236,8 @@ else
 				fi
 				;;
 			-a|--aspectratio) shift
-				#if [ "$1" = "${1%_*}_${1#*_}" ]; then
-				#asp="$1"
-				#if [ "$1" = "${asp%_*}_${asp#*_}" ]; then
 				if [ "$1" = "${1%_*}_${1#*_}" ]; then
-				#	echo "$asp"
 					CustomAspectRatio="$1"
-					#exit;
 					shift
 				else
 					echo "Invalid argument for Aspect Ratio"
@@ -229,15 +247,10 @@ else
 				fi
 				;;
 			-r|--resolution) shift
-				#echo "$1"
-				#res="$1"
 				if [ "$1" = "${1%x*}x${1#*x}" ]; then
-				#if [ "$res" = "[0-9]+"x"[0-9]+" ]; then
-				#	echo "${1%x*}"
 					CustomGrubResolution="$1"
 					shift
 				else
-				#	echo ${res#x[0-9]}, "${1%x*}"
 					echo "Invalid argument for Grub Resolution"
 					echo -e "$PrettygrubHelp"
 					exit;
@@ -271,12 +284,9 @@ else
 	echo "Template "$PGTemplate" is missing. Exiting..."
 	exit;
 fi
-echo "Template" "$Template"
-
-# Template="$LocalDataPath"/templates/"$PGTemplate"
+#echo "Template" "$Template"
 DefaultResources="$DefaultTemplate"/resources
 Resources="$Template"/resources
-
 echo "Transforming " $Template
 
 CreateWorkDir
@@ -393,15 +403,8 @@ The new grub theme has been succesfully created and saved at " "$ThemeFolder"/"$
 }
 
 function PGSetActiveTheme {
-	#if [ "$1" = "normal" ]; then
-		GrubThemesFolder=/boot/grub/themes
-	#elif [ "$1" = "system" ]; then
-		#ThemeFolder="$SystemDataPath"/themes
-	#else
-	#	return 1;
-	#fi
+	GrubThemesFolder=/boot/grub/themes
 	NewActiveGrubTheme="${PGTemplate/"^default$"/"gtc-theme"}"
-	echo "New theme "$NewActiveGrubTheme" is saved and set active"
 	if [ -d "$GrubThemesFolder"/"$NewActiveGrubTheme" ]; then
 		i=1
 		until ! [ -d "$GrubThemesFolder"/"$NewActiveGrubTheme"-"$i" ]; do (( i++ )); done
@@ -447,6 +450,7 @@ function PGSetActiveTheme {
 		echo "Active theme is " $ActiveGrubTheme
 		return 1;
 	fi
+	echo "New theme "$NewActiveGrubTheme" is saved and set active"
 	echo "
 	The new grub theme has been succesfully activated and saved at " "$GrubThemesFolder"/"$ActiveGrubTheme"
 }
@@ -467,5 +471,5 @@ case "${AutoActions-"SaveLocal"}" in
 	*) echo "No actions defined"
 	;;
 	esac
-# [ $? -eq 0 ] && ThemeSaved=true || echo "Error saving theme. Error Number " "$?"
+ [ $? -eq 0 ] &&  echo "Error saving theme. Error Number " "$?"
 exit;

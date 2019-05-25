@@ -1,0 +1,86 @@
+
+# Global Property
+title-text: ""
+desktop-image: "PG_WallpaperImage"
+desktop-color: "PG_DesktopColor"
+terminal-font: "PG_TerminalFont"
+terminal-box: "PG_TerminalBitmaps"
+terminal-left: "0"
+terminal-top: "0"
+terminal-width: "100%-6"
+terminal-height: "100%-6"
+terminal-border: "3"
+
+
++ image {
+ id="theme_logo"
+ top= PG_LogoTop
+ left= PG_LogoLeft
+ width = PG_LogoWidth
+ height = PG_LogoHeight
+ file = "PG_PGLogo"
+}
+
+# Show the top mini menu
++ boot_menu {
+  left = PG_TopMenuLeft
+  top = PG_TopMenuTop
+  width = PG_TopMenuWidth
+  height = PG_TopMenuHeight
+  item_font = "PG_TerminalFont"
+  item_color = "PG_TopMenuColor"
+  selected_item_color = "PG_TopMenuColor"
+  item_height = 1
+  item_spacing = 0
+  item_padding = 0
+  icon_height = PG_TopMenuIconHeight
+  icon_width = PG_TopMenuIconWidth
+}
+
+
+# Show the low details menu
++ boot_menu {
+  left = PG_MainMenuLeft
+  top = PG_MainMenuTop
+  width = PG_MainMenuWidth
+  height = PG_MainMenuHeight
+  item_font = "PG_MainMenuItemFont"
+  item_height = PG_MainMenuItemHeight
+  item_spacing = PG_MainMenuItemSpacing
+  item_color = "PG_MainMenuItemColor"
+  selected_item_font = "PG_MainMenuSelectedItemFont"
+  selected_item_color = "PG_MainMenuSelectedItemColor"
+  icon_height = PG_MainMenuIconHeight
+  icon_width = PG_MainMenuIconWidth
+  item_icon_space = PG_MainMenuItemIconSpace
+  menu_pixmap_style = "PG_MainMenuBitmaps"
+  item_pixmap_style = "PG_MainMenuItemBitmaps"
+  selected_item_pixmap_style = "PG_MainMenuSelectedBitmaps"
+}
+
+
+# Show a countdown clock
++ circular_progress {
+  top = PG_ClockTop
+  left = PG_ClockLeft
+  width = PG_ClockWidth
+  height = PG_ClockHeight
+  center_bitmap = PG_ClockCenterImage
+  tick_bitmap = PG_ClockTickImage
+  num_ticks = PG_ClockNumTicks
+  ticks_disappear = PG_ClockTicksDisappear
+  id = "__timeout__"
+}
+
+
+#help bar at bottom
++ label {
+	top = PG_HelpTop
+	left = PG_HelpLeft
+	width = PG_HelpWidth
+	height = PG_HelpHeight
+	text = PG_HelpTextLength
+	align = PG_HelpAlign
+	font = "PG_HelpFont"
+	color = PG_HelpColor
+}
