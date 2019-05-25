@@ -1,6 +1,6 @@
 # grub-theme-creator
 Grub-theme-creator (GTC) is a project that automates the creation of a grub2 theme, using a bash script and settings files and resources (images).
-It is part of the "PrettyGrub" Project, that's why you'll find this word in several places during usage.
+It is part of the "PrettyGrub" Project, that's why you'll find this word in several places during usage. An alias symlink is provided for historical reasons
 
 ## Disclaimer
 This project is developed and tested on my personal computer using Manjaro Plasma Testing. Since it is using common Linux utilities, it should work on other Linux systems as well, so users reports on which systems they used it (successfully or not) is welcome.
@@ -12,7 +12,7 @@ While experienced users can easily modify a common grub theme to their liking, a
 I would say, this is my appreciation gift to artists!
 
 ## USAGE
-You can use GTC right away, even with no custom settings files, or no parameters, which will create a default theme in `$HOME/.local/share/prettygrub/themes/gtc-default`. The "default" template includes a "resources" folder with images, structured by category/usage, that are used as default replacements when the file is missing from the custom template "resources" folder. The custom templates do not use this structure, having all images in the "resources" folder. (It may work even with structured folders, using proper settings, but it is not tested). Using aspect ratio and/or resolution parameters will create another theme (folder) with a similar name `gtc-default-1` and so on. Since it is so easy to create several versions of a theme, after getting the preferred result, you can delete the rest of the similar theme folders and maybe rename the remaining, if you like.
+You can use GTC right away, even with no custom settings files, or no parameters, which will create a default theme in `$HOME/.local/share/prettygrub/themes/gtc-theme`. The "default" template includes a "resources" folder with images, structured by category/usage, that are used as default replacements when the file is missing from the custom template "resources" folder. The custom templates do not use this structure, having all images in the "resources" folder. (It may work even with structured folders, using proper settings, but it is not tested). Using aspect ratio and/or resolution parameters will create another theme (folder) with a similar name `gtc-theme-1` and so on. Since it is so easy to create several versions of a theme, after getting the preferred result, you can delete the rest of the similar theme folders and maybe rename the remaining, if you like.
 A suggested initial setup is like this:
 * Install (instructions on installation at the bottom)
 	grub-theme-creator
@@ -56,6 +56,7 @@ If it is not found, it is `/usr/share/prettygrub/templates/default`
 
 3. Distribution icons/images are treated as a group/set, so the used value is the folder name that includes the set. For example `pg-square`. The `prettygrub` set is provided as a sample of how the images are converted, when used in TopMenu (workaround to present distro icons in a "hidden" secondary menu).
 
+4. You may understand more about the script logic by studying the default `*.conf` files, the bash script and by using it, of course.
 
 ## COMMAND_LINE USAGE - HELP
 ```
@@ -89,4 +90,17 @@ sudo mkdir -p  /usr/share/prettygrub
 sudo cp -r templates  /usr/share/prettygrub/
 chmod +x grub-theme-creator
 sudo cp grub-theme-creator  /usr/local/bin
+sudo cp prettygrub  /usr/local/bin
 ```
+* Install [horizontal-grub](https://github.com/petsam/horizontal-grub)
+* Install [grub2-theme-preview](https://github.com/hartwork/grub2-theme-preview)
+* Install [imagemagick](https://www.imagemagick.org/)
+
+## CONTRIBUTION
+I want to thank my good friend @sgse (aka sgs at Manjaro Forum) for his valuable help, providing beautiful images and testing.
+
+Please, provide bug reports and feature requests, for further improvements.
+If you want to share your GTC theme templates, I will try to maintain a list at [prettygrub](https://github.com/petsam/prettygrub) project. Send a link to your web page, or request to be posted. (This repo was the initial simple theme. It will soon be converted to house GTC theme templates and links)
+It would be nice (for all that may want to use them), if there are contributions with images for the default resources.
+
+I wish this project will be useful and enjoying!
