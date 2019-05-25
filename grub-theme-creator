@@ -52,7 +52,7 @@ PrettygrubHelp=$0" will create a grub theme based on provided settings,
                      [RESOLUTION] in the form of NUMBERxNUMBER. If the parameter is used, the value is required.
                      This might be helpful in cases when grub resolution is not the same as the real monitor resolution
      -p|--prettygrub
-                     Used to transform the icons in a \"prettygrub/horizontal-grub\" format, using imagemagick, which has to be installed
+                     If you use horizontal-grub type theme, use this parameter to run horizontal-grub when setting as active theme
      -x|--scripted [ACTION]
                      Used to automate theming or horizontal-grub invocation in scripts. Available options are:
                      SaveLocal (saves produced theme to local home folder) SaveSystem (saves produced theme to system folder) [requires admin privileges], SetActiveTheme (as SaveSystem, then copies the theme to /boot/grub/themes, changes /etc/default/grub GRUB_THEME value, runs update-grub and if -p is provided, runs horizontal-grub) [requires admin privileges]
