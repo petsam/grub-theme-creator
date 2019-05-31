@@ -2,6 +2,10 @@
 Grub-theme-creator (GTC) is a project that automates the creation of a grub2 theme, using a bash script and settings files and resources (images).
 It is part of the "PrettyGrub" Project, that's why you'll find this word in several places during usage. An alias symlink is provided for historical reasons
 
+### Demo video(s)
+* [Template (Style) Acropolis](https://youtu.be/Gea4uyHeY5A)
+
+
 ## Disclaimer
 This project is developed and tested on my personal computer using Manjaro Plasma Testing. Since it is using common Linux utilities, it should work on other Linux systems as well, so users reports on which systems they used it (successfully or not) is welcome.
 As every program, it is possible to have bugs and certainly the code can be improved. Use it on your own responsibility, taking the same risk as when you use other programs. I would appreciate reporting bugs, proposed improvements and feature requests.
