@@ -84,3 +84,14 @@ terminal-border: "3"
 	font = "PG_HelpFont"
 	color = PG_HelpColor
 }
+
+
+# Help background
++ image {
+ id="help_background"
+ top= PG_HelpTop-10
+ left= 0
+ width = 100%
+ height = PG_HelpHeight+20
+ file = "PG_HelpBackground"
+}
