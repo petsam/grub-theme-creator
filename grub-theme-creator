@@ -130,7 +130,7 @@ function TransformImage {
 		echo "Target image width was not provided. Aborting conversion.."
 		return 2 ;
 	else
-		convert ${Image} -scale ${ImageWidth}${ImageHeight:+"x$ImageHeight"} "$WorkDir"/${Image##*\/} 2>/dev/null
+		convert ${Image}  -background None  -scale ${ImageWidth}${ImageHeight:+"x$ImageHeight"} "$WorkDir"/${Image##*\/} 2>/dev/null
 	fi
 }
 
@@ -196,7 +196,7 @@ if [ "$ResourceType" != "SETTING" ] && [ "$ResourceSetting" != "" ]; then
 		;;
 		PG_ClockCenterImage)TransformImage $ClockWidth $ClockHeight $CurrentResource
 		;;
-		PG_ClockTickImage)TransformImage $(($ClockWidth/6)) $(($ClockWidth/6)) $CurrentResource
+		PG_ClockTickImage)TransformImage $(($ClockWidth/10)) $(($ClockWidth/10)) $CurrentResource
 		;;
 		*)echo "$ResourceType $CurrentResource not found"
 		;;
@@ -354,6 +354,7 @@ PickResources "SETTING" "PG_HelpLeft" $HelpLeft
 PickResources "SETTING" "PG_HelpWidth" $HelpWidth
 PickResources "SETTING" "PG_HelpHeight" $HelpHeight
 PickResources "SETTING" "PG_HelpAlign" $HelpAlign
+PickResources "other" "PG_HelpBackground" $HelpBackground
 
 PickResources "SETTING" "PG_LogoTop" $LogoTop
 PickResources "SETTING" "PG_LogoLeft" $LogoLeft
@@ -471,5 +472,5 @@ case "${AutoActions-"SaveLocal"}" in
 	*) echo "No actions defined"
 	;;
 	esac
- [ $? -eq 0 ] &&  echo "Error saving theme. Error Number " "$?"
+ [ $? -ne 0 ] &&  echo "Error saving theme. Error Number " "$?"
 exit;
