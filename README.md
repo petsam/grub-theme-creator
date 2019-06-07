@@ -28,14 +28,15 @@ A suggested initial setup is like this:
 mkdir -p $HOME/.local/share/prettygrub/templates
 cp /usr/share/prettygrub/templates/default $HOME/.local/share/prettygrub/templates/
 ```
-* Clone the default template folder for your "custom template", for example `mytheme`. Delete the folders inside new template's "resources" folder.
+* Clone an existing template folder to use as *base* for your new template, for example `mytheme`.
 ```
-cp $HOME/.local/share/prettygrub/templates/default $HOME/.local/share/prettygrub/templates/mytheme
-rm -r $HOME/.local/share/prettygrub/templates/mytheme/resources/*
+cp $HOME/.local/share/prettygrub/templates/projector $HOME/.local/share/prettygrub/templates/mytheme
 ```
 * Copy your custom images for wallpaper, logo, clock (background and tick for countdown timer clock) etc, in custom template "resources" folder.
-* Edit `*.conf` files in custom template to comment out (add `#` at line start) default settings. Edit and enable (remove `#`) entries that you want, making sure any referenced files are either in your custom template `resources` folder, or in the default template's resources. It is possible to edit the `theme.txt` file directly, if you know how it works and some feature that is not provided automatically with current settings, like for example to remove the TopMenu (this maybe a feature in the future).
-* After editing settings, test your new theme with `grub2-theme-preview`
+* Edit `*.conf` files in the new template.
+It is possible to edit the `theme.txt` file directly, if you know how it works and some feature that is not provided automatically with current settings, like for example to remove the TopMenu (this maybe a feature in the future).
+* After editing settings, run `grub-theme-creator -t mytheme` . You may add one or more of the available parameters, if you want to temporarily bypass/override current settings in `.conf` files.
+* Test your new theme with `grub2-theme-preview`
 ```
 sudo grub2-theme-preview --resolution [RESOLUTION] $HOME/.local/share/prettygrub/templates/mytheme
 ```
@@ -45,16 +46,8 @@ sudo grub2-theme-preview --resolution [RESOLUTION] $HOME/.local/share/prettygrub
 
 > [DEFAULT TEMPLATE] is `$HOME/.local/share/prettygrub/templates/default`.
 If it is not found, it is `/usr/share/prettygrub/templates/default`
-
-* [DEFAULT TEMPLATE]/templates/default.conf
-* [CUSTOM TEMPLATE]/default.conf
-* If command-line provides [ASPECT_RATIO] it's used. Else it is read from previous files.
-* [DEFAULT TEMPLATE]/templates/[ASPECT_RATIO].conf
-* If command-line provides [GRUBxRESOLUTION] it's used. Else it is read from previous files.
-* [DEFAULT TEMPLATE]/templates/[GRUBxRESOLUTION].conf
-* [CUSTOM TEMPLATE]/default.conf
-* [CUSTOM TEMPLATE]/[ASPECT_RATIO].conf
-* [CUSTOM TEMPLATE]/[GRUBxRESOLUTION].conf
+Settings are read starting from the default template and then your custom template.
+If there are aspect ratio or grub resolution filenames (16_9.conf, 1024x768.conf etc.), first aspect ratio is read and then resolution file.
 
 2. If a setting includes a file, it is first searched in `[CUSTOM TEMPLATE]/resources/`. If it is not found, it is searched in * `[DEFAULT TEMPLATE]/resources/[TYPE]/`, where [TYPE] depends on the specific setting.
 
@@ -68,52 +61,58 @@ grub-theme-creator will create a grub theme based on provided settings,
     compatible with horizontal-grub script, to conform a theme with fake-horizontal style.
 
     Usage:
-     -t | --template  [TEMPLATE]
+     -t | --template  [TEMPLATE] {Required}
                      The template folder name, containing configuration files and a \"resources\" folder with custom images
                      If the parameter is not used, the default template will be used
 
      -h | --help
                      This help information message
 
-     -a|--aspectratio [ASPECTRATIO] {optional}
+     -V | --version
+                     Show program version
+
+     -a | --aspectratio [ASPECTRATIO] {optional}
                      [ASPECTRATIO] in the form of NUMBER_NUMBER. If the parameter is used, the value is required.
                      This might be helpful in cases when grub resolution is not the same as the real monitor resolution
 
-     -r|--resolution [RESOLUTION] {optional}
+     -r | --resolution [RESOLUTION] {optional}
                      [RESOLUTION] in the form of WIDTHxHEIGHT in pixels. If the parameter is used, the value is required.
                      This might be helpful in cases when grub resolution is not the same as the real monitor resolution
 
-     -p|--prettygrub  {optional}
+     -p | --prettygrub  {optional}
                      If you use horizontal-grub type theme, use this parameter to run horizontal-grub when setting as active theme
 
-     -s|--slice  [COORDINATES]  {optional}
+     -s | --slice  [COORDINATES]  {optional}
                     Generate pixmap image-sets out of one provided image. A preview window helps fine adjust this setting.
                     [COORDINATES] value has the form of WIDTHxHEIGHT+LEFT+TOP in pixels and used once for setting cutting shape and
                     once for setting element size and position on the theme in the specified resolution.
+                    If used with --window-preview, it generates bitmap images and relevant settings for the used resolution.
 
-     -w|--window-preview    {optional}
+     -w | --window-preview    {optional}
                      Show only previews of shaping and positioning of elements. Do not generate a theme.
                         Useful when generating missing configuration files for several resolutions.
 
-     -x|--scripted [ACTION]  {optional}
+     -x | --scripted [ACTION]  {optional}
                      Used to automate theming or horizontal-grub invocation in scripts. Available options are:
                      SaveLocal (saves produced theme to local home folder)
                      SaveSystem (saves produced theme to system folder) [requires admin privileges]
                      SetActiveTheme (as SaveSystem, then copies the theme to /boot/grub/themes,
                        changes /etc/default/grub GRUB_THEME value, runs update-grub and if -p is provided,
                        runs horizontal-grub) [requires admin privileges]
-     -v|--verbose
+     -v | --verbose
                     Show more detailed information in the output
 
 ```
 
 ## INSTALLATION
-* Install grub-theme-creator (suggested, for Archlinux/Manjaro)
+For Arch and Arch-based distributions, there is an AUR package and a PKGBUILD file.
+To install manually (suggested, for Archlinux/Manjaro):
 ```
 git clone https://github.com/petsam/grub-theme-creator
 cd grub-theme-creator
 sudo mkdir -p  /usr/share/prettygrub
 sudo cp -r templates  /usr/share/prettygrub/
+sudo cp -r prettygrub.conf  /usr/share/prettygrub/
 chmod +x grub-theme-creator
 sudo cp grub-theme-creator  /usr/local/bin
 sudo cp prettygrub  /usr/local/bin
@@ -123,7 +122,9 @@ sudo cp prettygrub  /usr/local/bin
 * Install [imagemagick](https://www.imagemagick.org/)
 
 ## CONTRIBUTION
-I want to thank my good friend @sgse (aka sgs at Manjaro Forum) for his valuable help, providing beautiful images and testing.
+I want to thank
+* my good friend @sgse (aka sgs at Manjaro Forum) for his valuable help, providing beautiful images and testing
+* @yochananmarqos (aka yochanan at Manjaro Forum) for the PKGBUILD and AUR packaging
 
 Please, provide bug reports and feature requests, for further improvements.
 If you want to share your GTC theme templates, I will try to maintain a list at [prettygrub](https://github.com/petsam/prettygrub) project. Send a link to your web page, or request to be posted. (This repo was the initial simple theme. It will soon be converted to house GTC theme templates and links)

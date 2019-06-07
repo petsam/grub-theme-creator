@@ -23,72 +23,6 @@
 #####           petsam's "Adventures in Bash"                   #####
 #####################################################################
 
-
-# Check if run as root or sudo
-if (( $(id -u) == 0 )); then
-	IAMROOT="true"
-	echo "The script is run as root"
-fi
-#[ $IAMROOT ] && echo "I am Root" || echo "I am NOT Root"
-RealUser=$(whoami)
-#exit;
-# Application system and local paths
-SystemDataPath=/usr/share/prettygrub
-LocalDataPath=${XDG_DATA_HOME:-$HOME/.local/share}/prettygrub
-# Default templates
-DefaultTemplate="default"
-PGTemplate=$DefaultTemplate
-SampleMenuEntry=$(uname -osrp)
-# Help message
-PrettygrubHelp=$0" will create a grub theme based on provided settings,
-    compatible with horizontal-grub script, to conform a theme with fake-horizontal style.
-
-    Usage:
-     -t | --template  [TEMPLATE]
-                     The template folder name, containing configuration files and a \"resources\" folder with custom images
-                     If the parameter is not used, the default template will be used
-
-     -h | --help
-                     This help information message
-
-     -a|--aspectratio [ASPECTRATIO] {optional}
-                     [ASPECTRATIO] in the form of NUMBER_NUMBER. If the parameter is used, the value is required.
-                     This might be helpful in cases when grub resolution is not the same as the real monitor resolution
-
-     -r|--resolution [RESOLUTION] {optional}
-                     [RESOLUTION] in the form of WIDTHxHEIGHT in pixels. If the parameter is used, the value is required.
-                     This might be helpful in cases when grub resolution is not the same as the real monitor resolution
-
-     -p|--prettygrub  {optional}
-                     If you use horizontal-grub type theme, use this parameter to run horizontal-grub when setting as active theme
-
-     -s|--slice  [COORDINATES]  {optional}
-                    Generate pixmap image-sets out of one provided image. A preview window helps fine adjust this setting.
-                    [COORDINATES] value has the form of WIDTHxHEIGHT+LEFT+TOP in pixels and used once for setting cutting shape and
-                    once for setting element size and position on the theme in the specified resolution.
-
-     -w|--window-preview    {optional}
-                     Show only previews of shaping and positioning of elements. Do not generate a theme.
-                        Useful when generating missing configuration files for several resolutions.
-
-     -x|--scripted [ACTION]  {optional}
-                     Used to automate theming or horizontal-grub invocation in scripts. Available options are:
-                     SaveLocal (saves produced theme to local home folder)
-                     SaveSystem (saves produced theme to system folder) [requires admin privileges]
-                     SetActiveTheme (as SaveSystem, then copies the theme to /boot/grub/themes,
-                       changes /etc/default/grub GRUB_THEME value, runs update-grub and if -p is provided,
-                       runs horizontal-grub) [requires admin privileges]
-     -v|--verbose
-                    Show more detailed information in the output
-				"
-
-
-PrettygrubHeading="
-#### Automatically created grub theme by grub-theme-creator ####
-# PrettyGrub project by @petsam
-# Auto-generate proper resources and settings per custom resolution
-"
-
 # Create work directory
 function CreateWorkDir {
 	DateSuffix="pg-"$(date +%s)
@@ -103,8 +37,9 @@ function CreateWorkDir {
 		WorkDir=$HOME/.local/tmp/prettygrub-"$DateSuffix"
 	fi
 	mkdir -p "$WorkDir"
-	#cd $WorkDir
+	cd $WorkDir
 	[ "$ShowActivity" = "true" ] && echo "Created working directory :" "$WorkDir"
+	TmpErrors="$WorkDir/errors.log"
 
 }
 
@@ -112,7 +47,7 @@ function BatchCopy {
 		BatchFiles=""
 		CurrentResourceLeft=${1%\**}
 		CurrentResourceRight=${1#*\*}
-		BatchFiles=($(ls "$2"${1/*/\*} 2>/dev/null))
+		BatchFiles=($(ls "$2"${1/*/\*}  2>$TmpErrors))
 		if [ -z "${#BatchFiles[@]}" ]; then
 			[ "$ShowActivity" = "true" ] && echo "No files found for batch copy."
 			return 0;
@@ -142,7 +77,7 @@ function TransformImage {
 		echo "Target image width was not provided. Aborting conversion.."
 		return 2 ;
 	else
-		convert ${Image}  -background None  -scale ${ImageWidth}${ImageHeight:+"x$ImageHeight"} "$WorkDir"/${Image##*\/} 2>/dev/null
+		convert ${Image}  -background None  -scale ${ImageWidth}${ImageHeight:+"x$ImageHeight"} "$WorkDir"/${Image##*\/} 2>$TmpErrors
 	fi
 }
 
@@ -191,11 +126,11 @@ if [ "$ResourceType" != "SETTING" ] && [ "$ResourceSetting" != "" ]; then
 		if [ $UseTopMenu = "true" ]; then
 			[ "$ShowActivity" = "true" ] && echo "Converting and copying icons from " $CurrentResource " to " "$WorkDir"/icons
 			for DistroIcon in $(ls $CurrentResource/*); do
-				convert "$DistroIcon" -resize "$TopMenuIconWidth" -background None -gravity South -extent ${TopMenuIconWidth}x${TopMenuIconHeight} "$WorkDir"/icons/${DistroIcon##*\/} 2>/dev/null
+				convert "$DistroIcon" -resize "$TopMenuIconWidth" -background None -gravity South -extent ${TopMenuIconWidth}x${TopMenuIconHeight} "$WorkDir"/icons/${DistroIcon##*\/}  2>$TmpErrors
 			done
 		else
 			[ "$ShowActivity" = "true" ] && echo "Copying icons from " $CurrentResource " to " "$WorkDir"/icons
-			cp -r $CurrentResource/* "$WorkDir"/icons/ 2>/dev/null
+			cp -r $CurrentResource/* "$WorkDir"/icons/ 2>$TmpErrors
 		fi
 	elif [ "$ResourceType" = "clock" ] || [ "$ResourceType" = "logos" ] || [ "$ResourceType" = "wallpapers" ]; then
 		case $SettingName in
@@ -203,7 +138,7 @@ if [ "$ResourceType" != "SETTING" ] && [ "$ResourceSetting" != "" ]; then
 			if [ ! "$GrubResolution" = "" ]; then
 				TransformImage ${GrubResolution%x*} ${GrubResolution#*x} $CurrentResource
 			else
-				cp -r $CurrentResource "$WorkDir"/ 2>/dev/null
+				cp -r $CurrentResource "$WorkDir"/  2>$TmpErrors
 			fi
 		;;
 		PG_PGLogo)TransformImage $LogoWidth $LogoHeight $CurrentResource
@@ -216,7 +151,7 @@ if [ "$ResourceType" != "SETTING" ] && [ "$ResourceSetting" != "" ]; then
 		;;
 		esac
 	else
-		cp -r $CurrentResource "$WorkDir"/ 2>/dev/null
+		cp -r $CurrentResource "$WorkDir"/  2>$TmpErrors
 	fi
 else
 	CurrentSetting=$ResourceSetting
@@ -339,7 +274,8 @@ function SliceImageToBitmaps {
 	fi
 	until [ "$NewCoordinates" = "" ]; do
 		[ "$ShowActivity" = "true" ] && echo MenuGeometry "$NewCoordinates" Image $OriginalImage
-		convert  +repage "$OriginalImage" "$DefaultResources"/other/sample-menu.png  -geometry !"$NewCoordinates" -composite - | display -title "Preview Shape - %wx%h" -sample "$PreviewResolution"  -
+		# pattern:HS_HORIZONTAL pattern:GRAY40 "$DefaultResources"/other/sample-menu.png
+		convert  +repage "$OriginalImage" pattern:GRAY40  -geometry !"$NewCoordinates" -composite +repage -  2>$TmpErrors | display  -sample "$PreviewResolution" -title "Preview Shape - %wx%h" -
 		OldCoordinates="$NewCoordinates"
 		NewCoordinates=""
 		GetNewCoordinates "$OldCoordinates" "Main^Menu^Shape"
@@ -350,7 +286,7 @@ function SliceImageToBitmaps {
 	NewCoordinates="$MainMenuWidth"x"$MainMenuHeight"+"$MainMenuLeft"+"$MainMenuTop"
 	until [ "$NewCoordinates" = "" ]; do
 		#[ "$ShowActivity" = "true" ] && echo ConvertedMenu $RunImage Geometry "${GrubResolution}"+${MainMenuLeft}+${MainMenuTop}
-		convert -resize !"$GrubResolution" $PreviewWallpaper $OriginalImage -geometry !"$NewCoordinates" -composite - | display  -sample "$PreviewResolution" -title "Preview Position - %wx%h" -
+		convert -resize !"$GrubResolution" $PreviewWallpaper $OriginalImage -geometry !"$NewCoordinates" -composite +repage -  2>$TmpErrors | display  -sample "$PreviewResolution" -title "Preview Position - %wx%h" -
 		OldCoordinates="$NewCoordinates"
 		NewCoordinates=""
 		GetNewCoordinates "$OldCoordinates" "Main_Menu_Position"
@@ -368,29 +304,30 @@ function SliceImageToBitmaps {
 }
 
 function ChangeTemplateSettings {
-	[ $(grep "^SliceMenu=" "$Template"/default.conf) ] && sed -i '/^SliceMenu=/ s/[[:print:]]*/#SliceMenu=\"'$3'\"/g' "$Template"/"$1".conf
-	[ ! -w "$Template"/"$1".conf ] && touch "$Template"/"$1".conf
-	[ $(grep "^SliceMenu=" "$Template"/"$1".conf) ] && sed -i 's|^SliceMenu=|^#SliceMenu=|g' "$Template"/"$1".conf
-	echo "SliceMenu=\"\"" >> "$Template"/"$1".conf
-	echo "MainMenuBitmaps="${2##*/}"_*.png" >> "$Template"/"$1".conf
+	#[ $(grep "^SliceMenu=" "$Template"/default.conf) ] && sed -i '/^SliceMenu=/ s/[[:print:]]*/#SliceMenu=\"'$3'\"/g' "$Template"/"$1".conf
+	[ ! -w "$Template"/"$1".conf ] && touch "$Template"/"$1".conf 2>$TmpErrors
+	[ $(grep "^SliceMenu=" "$Template"/"$1".conf) ] && sed -i 's|^SliceMenu=|^#SliceMenu=|g' "$Template"/"$1".conf 2>$TmpErrors
+	echo "SliceMenu=\"\"" >> "$Template"/"$1".conf 2>$TmpErrors
+	echo "MainMenuBitmaps="${2##*/}"_*.png" >> "$Template"/"$1".conf 2>$TmpErrors
 	ElementSize=${3%%+*} #  500x400
 	ElementPosition=${3#*+}  # 30+70
 	ElementWidth=${ElementSize%x*}
 	ElementHeight=${ElementSize#*x}
 	ElementLeft=${ElementPosition%+*}
 	ElementTop=${ElementPosition#*+}
-	echo "MainMenuWidth="\"$ElementWidth\" >> "$Template"/"$1".conf
-	echo "MainMenuHeight="\"$ElementHeight\" >> "$Template"/"$1".conf
-	echo "MainMenuLeft="\"$ElementLeft\" >> "$Template"/"$1".conf
-	echo "MainMenuTop="\"$ElementTop\" >> "$Template"/"$1".conf
+	echo "MainMenuWidth="\"$ElementWidth\" >> "$Template"/"$1".conf 2>$TmpErrors
+	echo "MainMenuHeight="\"$ElementHeight\" >> "$Template"/"$1".conf 2>$TmpErrors
+	echo "MainMenuLeft="\"$ElementLeft\" >> "$Template"/"$1".conf 2>$TmpErrors
+	echo "MainMenuTop="\"$ElementTop\" >> "$Template"/"$1".conf 2>$TmpErrors
 
 }
 
 function CutBipmaps {
 
 BitmapOriginalImage="$1"
-NewBitmap=${BitmapOriginalImage##/}
-NewBitmap=${BitmapOriginalImage%\.*}
+NewBitmap=${BitmapOriginalImage##*/}
+NewBitmap="${NewBitmap%\.*}$GrubResolution"
+[ $PreviewWindow = "true" ] && NewBitmap="$Template/resources/$NewBitmap" || NewBitmap="$WorkDir/$NewBitmap"
 ImageWidth=$(identify -format "%w" $1)  #   800
 ImageHeight=$(identify -format "%h" $1)  #   900
 CutCoordinates=$2
@@ -404,40 +341,104 @@ SliceTopHeight=${CoordOffset#*+}  #  70
 SliceCenterHeight=${CoordSize#*x}   #  400
 SliceBottomHeight=$(($ImageHeight-$SliceTopHeight-$SliceCenterHeight))   #  430
 
-convert $BitmapOriginalImage -crop $(($SliceLeftWidth-1))x$(($SliceTopHeight-1))+0+0 +repage ${NewBitmap}_nw.png
-[ "$ShowActivity" = "true" ] && echo "NorthWest done " $(($SliceLeftWidth-1))x$(($SliceTopHeight-1))+0+0 $?
-convert $BitmapOriginalImage +repage -crop "$SliceMiddleWidth"x$(($SliceTopHeight-1))+$(($SliceLeftWidth-1))+0 +repage ${NewBitmap}_n.png
-[ "$ShowActivity" = "true" ] && echo "North done " "$SliceMiddleWidth"x$(($SliceTopHeight-1))+$(($SliceLeftWidth-1))+0 $?
-convert $BitmapOriginalImage +repage -crop $(($SliceRightWidth-1))x$(($SliceTopHeight-1))+$(($SliceLeftWidth+$SliceMiddleWidth-2))+0 +repage ${NewBitmap}_ne.png
-[ "$ShowActivity" = "true" ] && echo "NorthEast done " $(($SliceRightWidth-1))x$(($SliceTopHeight-1))+$(($SliceLeftWidth+$SliceMiddleWidth-2))+0 $?
-convert $BitmapOriginalImage +repage -crop $(($SliceLeftWidth-1))x"$SliceCenterHeight"+0+$(($SliceTopHeight-1)) +repage ${NewBitmap}_w.png
-[ "$ShowActivity" = "true" ] && echo "West done " $(($SliceLeftWidth-1))x"$SliceCenterHeight"+0+$(($SliceTopHeight-1)) $?
-convert $BitmapOriginalImage +repage -crop "$SliceMiddleWidth"x"$SliceCenterHeight"+$(($SliceLeftWidth-1))+$(($SliceTopHeight-1)) +repage ${NewBitmap}_c.png
-[ "$ShowActivity" = "true" ] && echo "Center done " "$SliceMiddleWidth"x"$SliceCenterHeight"+$(($SliceLeftWidth-1))+$(($SliceTopHeight-1))  $?
-convert $BitmapOriginalImage +repage -crop $(($SliceRightWidth-1))x"$SliceCenterHeight"+$(($SliceLeftWidth+$SliceMiddleWidth-2))+$(($SliceTopHeight-1)) +repage ${NewBitmap}_e.png
-[ "$ShowActivity" = "true" ] && echo "East done " $(($SliceRightWidth-1))x"$SliceCenterHeight"+$(($SliceLeftWidth+$SliceMiddleWidth-2))+$(($SliceTopHeight-1)) $?
-convert $BitmapOriginalImage +repage -crop $(($SliceLeftWidth-1))x$(($SliceBottomHeight-1))+0+$(($SliceTopHeight+$SliceCenterHeight-2)) +repage ${NewBitmap}_sw.png
-[ "$ShowActivity" = "true" ] && echo "SouthWest done " $(($SliceLeftWidth-1))x$(($SliceBottomHeight-1))+0+$(($SliceTopHeight+$SliceCenterHeight-2))  $?
-convert $BitmapOriginalImage +repage -crop "$SliceMiddleWidth"x$(($SliceBottomHeight-1))+$(($SliceLeftWidth-1))+$(($SliceTopHeight+$SliceCenterHeight-2)) +repage ${NewBitmap}_s.png
-[ "$ShowActivity" = "true" ] && echo "South done " "$SliceMiddleWidth"x$(($SliceBottomHeight-1))+$(($SliceLeftWidth-1))+$(($SliceTopHeight+$SliceCenterHeight-2)) $?
-convert $BitmapOriginalImage +repage -crop $(($SliceRightWidth-1))x$(($SliceBottomHeight-1))+$(($SliceLeftWidth+$SliceMiddleWidth-2))+$(($SliceTopHeight+$SliceCenterHeight-2)) +repage ${NewBitmap}_se.png
-[ "$ShowActivity" = "true" ] && echo "SouthEast done " $(($SliceRightWidth-1))x$(($SliceBottomHeight-1))+$(($SliceLeftWidth+$SliceMiddleWidth-2))+$(($SliceTopHeight+$SliceCenterHeight-2)) $?
+convert $BitmapOriginalImage -crop $(($SliceLeftWidth-1))x$(($SliceTopHeight-1))+0+0 +repage ${NewBitmap}_nw.png 2>$TmpErrors
+[ $? -le 1 ] && [ "$ShowActivity" = "true" ] && echo "NorthWest done " $(($SliceLeftWidth-1))x$(($SliceTopHeight-1))+0+0 $? || echo "Error $? :Failed to create " ${NewBitmap}_nw.png
+convert $BitmapOriginalImage +repage -crop "$SliceMiddleWidth"x$(($SliceTopHeight-1))+$(($SliceLeftWidth-1))+0 +repage ${NewBitmap}_n.png 2>$TmpErrors
+[ $? -le 1 ] && [ "$ShowActivity" = "true" ] && echo "North done " "$SliceMiddleWidth"x$(($SliceTopHeight-1))+$(($SliceLeftWidth-1))+0 $? || echo "Error $? :Failed to create " ${NewBitmap}_n.png
+convert $BitmapOriginalImage +repage -crop $(($SliceRightWidth-1))x$(($SliceTopHeight-1))+$(($SliceLeftWidth+$SliceMiddleWidth-2))+0 +repage ${NewBitmap}_ne.png 2>$TmpErrors
+[ $? -le 1 ] && [ "$ShowActivity" = "true" ] && echo "NorthEast done " $(($SliceRightWidth-1))x$(($SliceTopHeight-1))+$(($SliceLeftWidth+$SliceMiddleWidth-2))+0 $? || echo "Error $? :Failed to create " ${NewBitmap}_ne.png
+convert $BitmapOriginalImage +repage -crop $(($SliceLeftWidth-1))x"$SliceCenterHeight"+0+$(($SliceTopHeight-1)) +repage ${NewBitmap}_w.png 2>$TmpErrors
+[ $? -le 1 ] && [ "$ShowActivity" = "true" ] && echo "West done " $(($SliceLeftWidth-1))x"$SliceCenterHeight"+0+$(($SliceTopHeight-1)) $? || echo "Error $? :Failed to create " ${NewBitmap}_w.png
+convert $BitmapOriginalImage +repage -crop "$SliceMiddleWidth"x"$SliceCenterHeight"+$(($SliceLeftWidth-1))+$(($SliceTopHeight-1)) +repage ${NewBitmap}_c.png 2>$TmpErrors
+[ $? -le 1 ] && [ "$ShowActivity" = "true" ] && echo "Center done " "$SliceMiddleWidth"x"$SliceCenterHeight"+$(($SliceLeftWidth-1))+$(($SliceTopHeight-1))  $? || echo "Error $? :Failed to create " ${NewBitmap}_c.png
+convert $BitmapOriginalImage +repage -crop $(($SliceRightWidth-1))x"$SliceCenterHeight"+$(($SliceLeftWidth+$SliceMiddleWidth-2))+$(($SliceTopHeight-1)) +repage ${NewBitmap}_e.png 2>$TmpErrors
+[ $? -le 1 ] && [ "$ShowActivity" = "true" ] && echo "East done " $(($SliceRightWidth-1))x"$SliceCenterHeight"+$(($SliceLeftWidth+$SliceMiddleWidth-2))+$(($SliceTopHeight-1)) $? || echo "Error $? :Failed to create " ${NewBitmap}_e.png
+convert $BitmapOriginalImage +repage -crop $(($SliceLeftWidth-1))x$(($SliceBottomHeight-1))+0+$(($SliceTopHeight+$SliceCenterHeight-2)) +repage ${NewBitmap}_sw.png 2>$TmpErrors
+[ $? -le 1 ] && [ "$ShowActivity" = "true" ] && echo "SouthWest done " $(($SliceLeftWidth-1))x$(($SliceBottomHeight-1))+0+$(($SliceTopHeight+$SliceCenterHeight-2))  $? || echo "Error $? :Failed to create " ${NewBitmap}_sw.png
+convert $BitmapOriginalImage +repage -crop "$SliceMiddleWidth"x$(($SliceBottomHeight-1))+$(($SliceLeftWidth-1))+$(($SliceTopHeight+$SliceCenterHeight-2)) +repage ${NewBitmap}_s.png 2>$TmpErrors
+[ $? -le 1 ] && [ "$ShowActivity" = "true" ] && echo "South done " "$SliceMiddleWidth"x$(($SliceBottomHeight-1))+$(($SliceLeftWidth-1))+$(($SliceTopHeight+$SliceCenterHeight-2)) $? || echo "Error $? :Failed to create " ${NewBitmap}_s.png
+convert $BitmapOriginalImage +repage -crop $(($SliceRightWidth-1))x$(($SliceBottomHeight-1))+$(($SliceLeftWidth+$SliceMiddleWidth-2))+$(($SliceTopHeight+$SliceCenterHeight-2)) +repage ${NewBitmap}_se.png 2>$TmpErrors
+[ $? -le 1 ] && [ "$ShowActivity" = "true" ] && echo "SouthEast done " $(($SliceRightWidth-1))x$(($SliceBottomHeight-1))+$(($SliceLeftWidth+$SliceMiddleWidth-2))+$(($SliceTopHeight+$SliceCenterHeight-2)) $? || echo "Error $? :Failed to create " ${NewBitmap}_se.png
 }
 
-# TODO Set proper title to display window
-# TODO Cut/splice menu image to bitmaps
-# TODO Change the settings after final menu setting
 
+
+GTCVersion="$0 Version: 0.1.0-alpha-1"
+RealUser=$(whoami)
+
+# Application system and local paths
+SystemDataPath=/usr/share/prettygrub
+LocalDataPath=${XDG_DATA_HOME:-$HOME/.local/share}/prettygrub
+# Default templates
+DefaultTemplate="default"
+PGTemplate=$DefaultTemplate
+SampleMenuEntry=$(uname -osrp)
+
+PrettygrubHelp=$0" will create a grub theme based on provided settings,
+    compatible with horizontal-grub script, to conform a theme with fake-horizontal style.
+
+    Usage:
+     -t | --template  [TEMPLATE] {Required}
+                     The template folder name, containing configuration files and a \"resources\" folder with custom images
+                     If the parameter is not used, the default template will be used
+
+     -h | --help
+                     This help information message
+
+     -V | --version
+                     Show program version
+
+     -a | --aspectratio [ASPECTRATIO] {optional}
+                     [ASPECTRATIO] in the form of NUMBER_NUMBER. If the parameter is used, the value is required.
+                     This might be helpful in cases when grub resolution is not the same as the real monitor resolution
+
+     -r | --resolution [RESOLUTION] {optional}
+                     [RESOLUTION] in the form of WIDTHxHEIGHT in pixels. If the parameter is used, the value is required.
+                     This might be helpful in cases when grub resolution is not the same as the real monitor resolution
+
+     -p | --prettygrub  {optional}
+                     If you use horizontal-grub type theme, use this parameter to run horizontal-grub when setting as active theme
+
+     -s | --slice  [COORDINATES]  {optional}
+                    Generate pixmap image-sets out of one provided image. A preview window helps fine adjust this setting.
+                    [COORDINATES] value has the form of WIDTHxHEIGHT+LEFT+TOP in pixels and used once for setting cutting shape and
+                    once for setting element size and position on the theme in the specified resolution.
+                    If used with --window-preview, it generates bitmap images and relevant settings for the used resolution.
+
+     -w | --window-preview    {optional}
+                     Show only previews of shaping and positioning of elements. Do not generate a theme.
+                        Useful when generating missing configuration files for several resolutions.
+
+     -x | --scripted [ACTION]  {optional}
+                     Used to automate theming or horizontal-grub invocation in scripts. Available options are:
+                     SaveLocal (saves produced theme to local home folder)
+                     SaveSystem (saves produced theme to system folder) [requires admin privileges]
+                     SetActiveTheme (as SaveSystem, then copies the theme to /boot/grub/themes,
+                       changes /etc/default/grub GRUB_THEME value, runs update-grub and if -p is provided,
+                       runs horizontal-grub) [requires admin privileges]
+     -v | --verbose
+                    Show more detailed information in the output
+				"
+
+
+PrettygrubHeading="
+#### Automatically created grub theme by grub-theme-creator ####
+# PrettyGrub project by @petsam
+# Auto-generate proper resources and settings per custom resolution
+"
 
 # Check for given command line parameters
 
-#if [ $# -eq 0 ]; then
-
-#else
+if [ $# -eq 0 ]; then
+	echo -e "$PrettygrubHelp"
+	exit;
+else
 	while [ "${1+defined}" ]; do
-	#  shift
 		case "$1" in
 			-h|--help) echo -e "$PrettygrubHelp"
+				exit;
+				;;
+			-V|--version) echo $GTCVersion
 				exit;
 				;;
 			-v|--verbose) ShowActivity="true"
@@ -448,7 +449,8 @@ convert $BitmapOriginalImage +repage -crop $(($SliceRightWidth-1))x$(($SliceBott
 					PGTemplate="$1"
 					shift
 				else
-					PGTemplate="default"
+					echo "Template parameter is required. Exiting..."
+					exit;
 				fi
 				;;
 			-a|--aspectratio) shift
@@ -503,7 +505,14 @@ convert $BitmapOriginalImage +repage -crop $(($SliceRightWidth-1))x$(($SliceBott
 				exit;;
 		esac
 	done
-#fi
+fi
+
+# Check if run as root or sudo
+if (( $(id -u) == 0 )); then
+	IAMROOT="true"
+#	echo "The script is run as root"
+fi
+#[ $IAMROOT ] && echo "I am Root" || echo "I am NOT Root"
 
 GetPaths
 GetConfig
@@ -526,8 +535,8 @@ if [[ "${SliceMenu:+defined}" ]] && [[ ! $(echo ${MainMenuBitmaps/\*/ISBITMAPS/}
 		exit;
 	fi
 else
+	[ "$ShowActivity" = "true" ] && echo SliceMenu  "${SliceMenu:-empty}"  MainMenuBitmaps "$MainMenuBitmaps"
 	echo "MainMenuBitmaps setting is not valid. Exiting..."
-	[ "$ShowActivity" = "true" ] && echo SliceMenu  "${SliceMenu:+defined}"  MainMenuBitmaps "$MainMenuBitmaps"
 fi
 [ ${ImageToSlice:+defined} ] && SliceImageToBitmaps "$ImageToSlice" "$SliceMenu"
 GetConfig
@@ -540,11 +549,11 @@ GetConfig
 
 # Write settings and copy resources to theme temp folder
 
-echo -e "$PrettygrubHeading" > "$WorkDir"/theme.txt
+echo -e "$PrettygrubHeading" > "$WorkDir"/theme.txt 2>$TmpErrors
 if  [ -r "$Template"/theme.txt ]; then
-	cat "$Template"/theme.txt >> "$WorkDir"/theme.txt
+	cat "$Template"/theme.txt >> "$WorkDir"/theme.txt 2>$TmpErrors
 else
-	cat "$DefaultTemplate"/theme.txt >> "$WorkDir"/theme.txt
+	cat "$DefaultTemplate"/theme.txt >> "$WorkDir"/theme.txt 2>$TmpErrors
 	[ "$ShowActivity" = "true" ] && echo "Template file(s) missing. Using default."
 fi
 
@@ -707,4 +716,7 @@ case "${AutoActions-"SaveLocal"}" in
 	;;
 	esac
  [ $? -ne 0 ] &&  echo "Error saving theme. Error Number " "$?"
+
+[ -s  $TmpErrors ] && echo "There were errors encountered. You may send them to the developer if you think there is a bug.
+   Error log file:  $TmpErrors"
 exit;
