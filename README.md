@@ -65,24 +65,46 @@ If it is not found, it is `/usr/share/prettygrub/templates/default`
 ## COMMAND_LINE USAGE - HELP
 ```
 grub-theme-creator will create a grub theme based on provided settings,
-compatible with horizontal-grub script, to conform a theme with fake-horizontal style.
+    compatible with horizontal-grub script, to conform a theme with fake-horizontal style.
+
     Usage:
      -t | --template  [TEMPLATE]
                      The template folder name, containing configuration files and a \"resources\" folder with custom images
                      If the parameter is not used, the default template will be used
+
      -h | --help
                      This help information message
-     -a|--aspectratio [ASPECT_RATIO] {optional}
-                     [ASPECT_RATIO] in the form of NUMBER_NUMBER. If the parameter is used, the value is required.
+
+     -a|--aspectratio [ASPECTRATIO] {optional}
+                     [ASPECTRATIO] in the form of NUMBER_NUMBER. If the parameter is used, the value is required.
                      This might be helpful in cases when grub resolution is not the same as the real monitor resolution
-     -r|--resolution [GRUBxRESOLUTION] {optional}
-                     [GRUBxRESOLUTION] in the form of NUMBERxNUMBER. If the parameter is used, the value is required.
+
+     -r|--resolution [RESOLUTION] {optional}
+                     [RESOLUTION] in the form of WIDTHxHEIGHT in pixels. If the parameter is used, the value is required.
                      This might be helpful in cases when grub resolution is not the same as the real monitor resolution
-     -p|--prettygrub
+
+     -p|--prettygrub  {optional}
                      If you use horizontal-grub type theme, use this parameter to run horizontal-grub when setting as active theme
-     -x|--scripted [ACTION]
+
+     -s|--slice  [COORDINATES]  {optional}
+                    Generate pixmap image-sets out of one provided image. A preview window helps fine adjust this setting.
+                    [COORDINATES] value has the form of WIDTHxHEIGHT+LEFT+TOP in pixels and used once for setting cutting shape and
+                    once for setting element size and position on the theme in the specified resolution.
+
+     -w|--window-preview    {optional}
+                     Show only previews of shaping and positioning of elements. Do not generate a theme.
+                        Useful when generating missing configuration files for several resolutions.
+
+     -x|--scripted [ACTION]  {optional}
                      Used to automate theming or horizontal-grub invocation in scripts. Available options are:
-                     SaveLocal (saves produced theme to local home folder) SaveSystem (saves produced theme to system folder) [requires admin privileges], SetActiveTheme (as SaveSystem, then copies the theme to /boot/grub/themes, changes /etc/default/grub GRUB_THEME value, runs update-grub and if -p is provided, runs horizontal-grub) [requires admin privileges]
+                     SaveLocal (saves produced theme to local home folder)
+                     SaveSystem (saves produced theme to system folder) [requires admin privileges]
+                     SetActiveTheme (as SaveSystem, then copies the theme to /boot/grub/themes,
+                       changes /etc/default/grub GRUB_THEME value, runs update-grub and if -p is provided,
+                       runs horizontal-grub) [requires admin privileges]
+     -v|--verbose
+                    Show more detailed information in the output
+
 ```
 
 ## INSTALLATION

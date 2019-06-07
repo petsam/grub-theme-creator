@@ -32,30 +32,54 @@ fi
 #[ $IAMROOT ] && echo "I am Root" || echo "I am NOT Root"
 RealUser=$(whoami)
 #exit;
-
+# Application system and local paths
 SystemDataPath=/usr/share/prettygrub
 LocalDataPath=${XDG_DATA_HOME:-$HOME/.local/share}/prettygrub
-
+# Default templates
+DefaultTemplate="default"
+PGTemplate=$DefaultTemplate
+SampleMenuEntry=$(uname -osrp)
 # Help message
 PrettygrubHelp=$0" will create a grub theme based on provided settings,
     compatible with horizontal-grub script, to conform a theme with fake-horizontal style.
+
     Usage:
      -t | --template  [TEMPLATE]
                      The template folder name, containing configuration files and a \"resources\" folder with custom images
                      If the parameter is not used, the default template will be used
+
      -h | --help
                      This help information message
+
      -a|--aspectratio [ASPECTRATIO] {optional}
                      [ASPECTRATIO] in the form of NUMBER_NUMBER. If the parameter is used, the value is required.
                      This might be helpful in cases when grub resolution is not the same as the real monitor resolution
+
      -r|--resolution [RESOLUTION] {optional}
-                     [RESOLUTION] in the form of NUMBERxNUMBER. If the parameter is used, the value is required.
+                     [RESOLUTION] in the form of WIDTHxHEIGHT in pixels. If the parameter is used, the value is required.
                      This might be helpful in cases when grub resolution is not the same as the real monitor resolution
-     -p|--prettygrub
+
+     -p|--prettygrub  {optional}
                      If you use horizontal-grub type theme, use this parameter to run horizontal-grub when setting as active theme
-     -x|--scripted [ACTION]
+
+     -s|--slice  [COORDINATES]  {optional}
+                    Generate pixmap image-sets out of one provided image. A preview window helps fine adjust this setting.
+                    [COORDINATES] value has the form of WIDTHxHEIGHT+LEFT+TOP in pixels and used once for setting cutting shape and
+                    once for setting element size and position on the theme in the specified resolution.
+
+     -w|--window-preview    {optional}
+                     Show only previews of shaping and positioning of elements. Do not generate a theme.
+                        Useful when generating missing configuration files for several resolutions.
+
+     -x|--scripted [ACTION]  {optional}
                      Used to automate theming or horizontal-grub invocation in scripts. Available options are:
-                     SaveLocal (saves produced theme to local home folder) SaveSystem (saves produced theme to system folder) [requires admin privileges], SetActiveTheme (as SaveSystem, then copies the theme to /boot/grub/themes, changes /etc/default/grub GRUB_THEME value, runs update-grub and if -p is provided, runs horizontal-grub) [requires admin privileges]
+                     SaveLocal (saves produced theme to local home folder)
+                     SaveSystem (saves produced theme to system folder) [requires admin privileges]
+                     SetActiveTheme (as SaveSystem, then copies the theme to /boot/grub/themes,
+                       changes /etc/default/grub GRUB_THEME value, runs update-grub and if -p is provided,
+                       runs horizontal-grub) [requires admin privileges]
+     -v|--verbose
+                    Show more detailed information in the output
 				"
 
 
@@ -65,26 +89,13 @@ PrettygrubHeading="
 # Auto-generate proper resources and settings per custom resolution
 "
 
-function FileExists {
-if [ -r $1 ]; then
-#	echo $1 " was found."
-	return 0;
-elif [ -d $1 ] &&  [ "$2" = "icons" ] ; then
-#	echo $1 " was found."
-	return 0;
-else
-	echo $1 " was not found."
-	return 128;
-fi
-}
-
 # Create work directory
 function CreateWorkDir {
 	DateSuffix="pg-"$(date +%s)
 	if [ ! -z "$TMPDIR" ];then
-		echo "TMPDIR =" $TMPDIR
+		#echo "TMPDIR =" $TMPDIR
 		WorkDir="$TMPDIR"/prettygrub-"$DateSuffix"
-		echo $WorkDir
+		[ "$ShowActivity" = "true" ] && echo "Using system TMPDIR " $WorkDir
 		exit;
 	elif [ -d /tmp ];then
 		WorkDir=/tmp/prettygrub-"$DateSuffix"
@@ -93,7 +104,7 @@ function CreateWorkDir {
 	fi
 	mkdir -p "$WorkDir"
 	#cd $WorkDir
-	echo "Created working directory :" "$WorkDir"
+	[ "$ShowActivity" = "true" ] && echo "Created working directory :" "$WorkDir"
 
 }
 
@@ -103,6 +114,7 @@ function BatchCopy {
 		CurrentResourceRight=${1#*\*}
 		BatchFiles=($(ls "$2"${1/*/\*} 2>/dev/null))
 		if [ -z "${#BatchFiles[@]}" ]; then
+			[ "$ShowActivity" = "true" ] && echo "No files found for batch copy."
 			return 0;
 		fi
 		fcopied=0
@@ -114,7 +126,7 @@ function BatchCopy {
 				if [ $FileLeft = "$CurrentResourceLeft" ] && [ $FileRight = "$CurrentResourceRight" ]; then
 					cp "$2""$bFileName" "$WorkDir"/
 					if [ "$?" -eq 0 ]; then (( fcopied++ )); fi
-					echo "Copying " "$2""$bFileName"
+					[ "$ShowActivity" = "true" ] && echo "Copying " "$2""$bFileName"
 				fi
 			done
 		return $fcopied;
@@ -150,12 +162,12 @@ if [ "$ResourceType" != "SETTING" ] && [ "$ResourceSetting" != "" ]; then
 		CurrentResource=$ResourceSetting
 	fi
 	if ! [ ${CurrentResource#*\*} = $CurrentResource ]; then
-		echo Copying "$CurrentResource" from "$Resources"/
+		[ "$ShowActivity" = "true" ] && echo Copying "$CurrentResource" from "$Resources"/
 		BatchCopy "$CurrentResource" "$Resources"/
 		BCResult=$?
 #		echo $BCResult
 		if [ $BCResult = 0 ]; then
-			echo "Using default resource" "$DefaultResources"/${ResourceType:+"$ResourceType"/}
+			[ "$ShowActivity" = "true" ] && echo "Using default resource" "$DefaultResources"/${ResourceType:+"$ResourceType"/}
 			BatchCopy $CurrentResource "$DefaultResources"/${ResourceType:+"$ResourceType"/}
 			if [ $? = 0 ]; then
 				echo "Could not find Default Resource. Is something wrong?..."
@@ -163,10 +175,10 @@ if [ "$ResourceType" != "SETTING" ] && [ "$ResourceSetting" != "" ]; then
 		fi
 	else
 		if [ -d "$Resources"/$CurrentResource ] || [ -r "$Resources"/$CurrentResource ]; then
-			echo "Found " "$Resources"/$CurrentResource
+			[ "$ShowActivity" = "true" ] && echo "Found " "$Resources"/$CurrentResource
 			CurrentResource="$Resources"/$CurrentResource
 		elif [ -d "$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource ] || [ -r "$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource ]; then
-			echo "Using default" "$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource
+			[ "$ShowActivity" = "true" ] && echo "Using default" "$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource
 			CurrentResource="$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource
 		else
 			echo "Could not find " $CurrentResource
@@ -177,12 +189,12 @@ if [ "$ResourceType" != "SETTING" ] && [ "$ResourceSetting" != "" ]; then
 	if [ "$ResourceType" = "icons" ]; then
 		mkdir "$WorkDir"/icons
 		if [ $UseTopMenu = "true" ]; then
-			echo "Converting and copying icons from " $CurrentResource " to " "$WorkDir"/icons
+			[ "$ShowActivity" = "true" ] && echo "Converting and copying icons from " $CurrentResource " to " "$WorkDir"/icons
 			for DistroIcon in $(ls $CurrentResource/*); do
 				convert "$DistroIcon" -resize "$TopMenuIconWidth" -background None -gravity South -extent ${TopMenuIconWidth}x${TopMenuIconHeight} "$WorkDir"/icons/${DistroIcon##*\/} 2>/dev/null
 			done
 		else
-			echo "Copying icons from " $CurrentResource " to " "$WorkDir"/icons
+			[ "$ShowActivity" = "true" ] && echo "Copying icons from " $CurrentResource " to " "$WorkDir"/icons
 			cp -r $CurrentResource/* "$WorkDir"/icons/ 2>/dev/null
 		fi
 	elif [ "$ResourceType" = "clock" ] || [ "$ResourceType" = "logos" ] || [ "$ResourceType" = "wallpapers" ]; then
@@ -190,6 +202,8 @@ if [ "$ResourceType" != "SETTING" ] && [ "$ResourceSetting" != "" ]; then
 		PG_WallpaperImage)
 			if [ ! "$GrubResolution" = "" ]; then
 				TransformImage ${GrubResolution%x*} ${GrubResolution#*x} $CurrentResource
+			else
+				cp -r $CurrentResource "$WorkDir"/ 2>/dev/null
 			fi
 		;;
 		PG_PGLogo)TransformImage $LogoWidth $LogoHeight $CurrentResource
@@ -216,16 +230,218 @@ else
 fi
 }
 
+function GetPaths {
+
+# Configuration paths
+[ -r "$SystemDataPath"/prettygrub.conf ] && . "$SystemDataPath"/prettygrub.conf
+[ -r "$LocalDataPath"/prettygrub.conf ] && . "$LocalDataPath"/prettygrub.conf
+[ -d "$LocalDataPath"/templates/"$DefaultTemplate" ] && DefaultTemplate="$LocalDataPath"/templates/"$DefaultTemplate" || DefaultTemplate="$SystemDataPath"/templates/"$DefaultTemplate"
+[ "$ShowActivity" = "true" ] && echo "Default Template: " "$DefaultTemplate"
+if  [ -d "$LocalDataPath"/templates/"$PGTemplate" ] ; then
+	Template="$LocalDataPath"/templates/"$PGTemplate"
+elif [ -d "$SystemDataPath"/templates/"$PGTemplate" ]; then
+	Template="$SystemDataPath"/templates/"$PGTemplate"
+else
+	echo "Template "$PGTemplate" is missing. Exiting..."
+	exit;
+fi
+[ "$ShowActivity" = "true" ] && echo "Template:" "$Template"
+DefaultResources="$DefaultTemplate"/resources
+Resources="$Template"/resources
+[ "$ShowActivity" = "true" ] && echo "Default Resources:" "$DefaultResources"
+[ "$ShowActivity" = "true" ] && echo "Resources" "$Resources"
+}
+
+
+
+function GetConfig {
+
+if [ -r "$DefaultTemplate"/default.conf ]; then . "$DefaultTemplate"/default.conf; fi
+if [ -r "$Template"/default.conf ]; then . "$Template"/default.conf; fi
+if [ ${CustomAspectRatio:+defined} ]; then AspectRatio="$CustomAspectRatio"; fi
+if [ -r "$DefaultTemplate"/"$AspectRatio".conf ]; then . "$DefaultTemplate"/"$AspectRatio".conf; fi
+if [ ${CustomGrubResolution:+defined} ]; then GrubResolution="$CustomGrubResolution"; fi
+if [ -r "$DefaultTemplate"/"$GrubResolution".conf ]; then . "$DefaultTemplate"/"$GrubResolution".conf ; fi
+if [ -r "$Template"/default.conf ]; then . "$Template"/default.conf; fi
+if [ ${CustomAspectRatio:+defined} ]; then AspectRatio="$CustomAspectRatio"; fi
+if [ -r "$Template"/"$AspectRatio".conf ]; then . "$Template"/"$AspectRatio".conf; fi
+if [ ${CustomGrubResolution:+defined} ]; then GrubResolution="$CustomGrubResolution"; fi
+if [ -r "$Template"/"$GrubResolution".conf ]; then . "$Template"/"$GrubResolution".conf ; fi
+
+# Apply command-line overrides
+HorizontalGrub=${CustomHorizontalGrub:-$HorizontalGrub}
+AutoActions=${CustomAutoActions:-$AutoActions}
+SliceMenu=${CustomSliceMenu:-$SliceMenu}
+[ "$ShowActivity" = "true" ] && echo "AspectRatio" "$AspectRatio"
+[ "$ShowActivity" = "true" ] && echo "GrubResolution" "$GrubResolution"
+[ "$ShowActivity" = "true" ] && echo "SliceMenu" "$SliceMenu"
+#[ "$ShowActivity" = "true" ] && echo "Resources" "$Resources"
+#[ "$ShowActivity" = "true" ] && echo "Resources" "$Resources"
+
+}
+
+function GetNewCoordinates {
+	PassedCoord=$1
+	shift
+	PromptTitleCoord="$@"
+	#(IFS= echo "$@" | tr "^" " ")
+	while true;
+	do
+	read -p "Do you want to change ${PromptTitleCoord//^/\ } ?
+			[Y]es [N]o : " PGChangeCoordinates
+		case $PGChangeCoordinates in
+			[Yy])read -i "$PassedCoord" -p "Enter new shape coordinates (WIDTHxHEIGHT+LEFT+TOP) Current $PassedCoord : " NewCoordinates
+				if [[ ! $NewCoordinates =~ [0-9]x[0-9]+[0-9]+[0-9] ]]; then
+					echo "Invalid coordinates entered. Try again."
+				else
+					break ;
+				fi
+				;;
+			[Nn]) NewCoordinates=""
+				break ;;
+			*) echo " You have to  answer [Y]es or [N]o." ;;
+		esac
+	done
+	#return "$NewCoordinates"
+
+}
+
+# PARAMS TYPE SETTING , example: (wallpapers)
+function GetImage {
+[ -r "$DefaultTemplate"/"$1"/"$2" ] && GotImage="$DefaultTemplate"/"$1"/"$2"
+[ -r "$Template"/resources/"$2" ] && GotImage="$Template"/resources/"$2"
+
+}
+
+
+function SliceImageToBitmaps {
+#magick convert -size 70x70 canvas:none -fill red -draw 'circle 35,35 10,30' red-circle.png
+	GetImage "wallpapers" $WallpaperImage
+	PreviewWallpaper=${GotImage:-$DefaultResources/wallpapers/sgs-dark-plasma-16_9.png}
+	unset GotImage
+	OriginalImage=$1
+#if [ "$GrubResolution" = "" ]; then
+#else
+#	ImageWidth=${GrubResolution%x*}
+#	ImageHeight=${GrubResolution#*x}
+#fi
+	ImageWidth=$(identify -format "%w" $OriginalImage)
+	ImageHeight=$(identify -format "%h" $OriginalImage)
+	if [ "$2" = "auto" ]; then
+		echo "Auto-slice menu bitmaps not tested yet." - # && exit
+		InsideMenuHeight=$MainMenuHeight
+		InsideMenuWidth=$MainMenuWidth
+		InsideLeft=$(($(($ImageWidth-$InsideMenuWidth))/2))
+		InsideTop=$(($(($ImageHeight-$InsideMenuHeight))/2))
+		NewCoordinates="$InsideMenuWidth"x"$InsideMenuHeight"+${InsideLeft}+${InsideTop}
+	else
+		NewCoordinates="$2"
+	fi
+	until [ "$NewCoordinates" = "" ]; do
+		[ "$ShowActivity" = "true" ] && echo MenuGeometry "$NewCoordinates" Image $OriginalImage
+		convert  +repage "$OriginalImage" "$DefaultResources"/other/sample-menu.png  -geometry !"$NewCoordinates" -composite - | display -title "Preview Shape - %wx%h" -sample "$PreviewResolution"  -
+		OldCoordinates="$NewCoordinates"
+		NewCoordinates=""
+		GetNewCoordinates "$OldCoordinates" "Main^Menu^Shape"
+	done
+	BitmapsImagePreview="$WorkDir"/bitmappreview.png
+	convert  "$OriginalImage" "$DefaultResources"/other/sample-menu.png  -geometry !"$OldCoordinates" -composite "$BitmapsImagePreview"
+	BitmapsCutGeometry="$OldCoordinates"
+	NewCoordinates="$MainMenuWidth"x"$MainMenuHeight"+"$MainMenuLeft"+"$MainMenuTop"
+	until [ "$NewCoordinates" = "" ]; do
+		#[ "$ShowActivity" = "true" ] && echo ConvertedMenu $RunImage Geometry "${GrubResolution}"+${MainMenuLeft}+${MainMenuTop}
+		convert -resize !"$GrubResolution" $PreviewWallpaper $OriginalImage -geometry !"$NewCoordinates" -composite - | display  -sample "$PreviewResolution" -title "Preview Position - %wx%h" -
+		OldCoordinates="$NewCoordinates"
+		NewCoordinates=""
+		GetNewCoordinates "$OldCoordinates" "Main_Menu_Position"
+	done
+	BitmapsPositionGeometry="$OldCoordinates"
+	echo Cutting "$OriginalImage" "$BitmapsCutGeometry"
+	CutBipmaps "$OriginalImage" "$BitmapsCutGeometry"
+	if [ ${GrubResolution-empty} = "empty" ] || [ ${OriginalImage-empty} = "empty" ] || [ ${BitmapsCutGeometry-empty} = "empty" ] || [ ${BitmapsPositionGeometry-empty} = "empty" ]; then
+		echo "Incomplete settings collected. Template will not be adjusted automatically."
+	else
+		ChangeTemplateSettings $GrubResolution $NewBitmap $BitmapsPositionGeometry
+
+	fi
+	NewBitmap="" && BitmapsPositionGeometry=""
+}
+
+function ChangeTemplateSettings {
+	[ $(grep "^SliceMenu=" "$Template"/default.conf) ] && sed -i '/^SliceMenu=/ s/[[:print:]]*/#SliceMenu=\"'$3'\"/g' "$Template"/"$1".conf
+	[ ! -w "$Template"/"$1".conf ] && touch "$Template"/"$1".conf
+	[ $(grep "^SliceMenu=" "$Template"/"$1".conf) ] && sed -i 's|^SliceMenu=|^#SliceMenu=|g' "$Template"/"$1".conf
+	echo "SliceMenu=\"\"" >> "$Template"/"$1".conf
+	echo "MainMenuBitmaps="${2##*/}"_*.png" >> "$Template"/"$1".conf
+	ElementSize=${3%%+*} #  500x400
+	ElementPosition=${3#*+}  # 30+70
+	ElementWidth=${ElementSize%x*}
+	ElementHeight=${ElementSize#*x}
+	ElementLeft=${ElementPosition%+*}
+	ElementTop=${ElementPosition#*+}
+	echo "MainMenuWidth="\"$ElementWidth\" >> "$Template"/"$1".conf
+	echo "MainMenuHeight="\"$ElementHeight\" >> "$Template"/"$1".conf
+	echo "MainMenuLeft="\"$ElementLeft\" >> "$Template"/"$1".conf
+	echo "MainMenuTop="\"$ElementTop\" >> "$Template"/"$1".conf
+
+}
+
+function CutBipmaps {
+
+BitmapOriginalImage="$1"
+NewBitmap=${BitmapOriginalImage##/}
+NewBitmap=${BitmapOriginalImage%\.*}
+ImageWidth=$(identify -format "%w" $1)  #   800
+ImageHeight=$(identify -format "%h" $1)  #   900
+CutCoordinates=$2
+CoordSize=${CutCoordinates%%+*} #  500x400
+CoordOffset=${CutCoordinates#*+}  # 30+70
+
+SliceLeftWidth=${CoordOffset%+*}  # 30
+SliceMiddleWidth=${CoordSize%x*}  #  500
+SliceRightWidth=$(($ImageWidth-$SliceLeftWidth-$SliceMiddleWidth))  #  270
+SliceTopHeight=${CoordOffset#*+}  #  70
+SliceCenterHeight=${CoordSize#*x}   #  400
+SliceBottomHeight=$(($ImageHeight-$SliceTopHeight-$SliceCenterHeight))   #  430
+
+convert $BitmapOriginalImage -crop $(($SliceLeftWidth-1))x$(($SliceTopHeight-1))+0+0 +repage ${NewBitmap}_nw.png
+[ "$ShowActivity" = "true" ] && echo "NorthWest done " $(($SliceLeftWidth-1))x$(($SliceTopHeight-1))+0+0 $?
+convert $BitmapOriginalImage +repage -crop "$SliceMiddleWidth"x$(($SliceTopHeight-1))+$(($SliceLeftWidth-1))+0 +repage ${NewBitmap}_n.png
+[ "$ShowActivity" = "true" ] && echo "North done " "$SliceMiddleWidth"x$(($SliceTopHeight-1))+$(($SliceLeftWidth-1))+0 $?
+convert $BitmapOriginalImage +repage -crop $(($SliceRightWidth-1))x$(($SliceTopHeight-1))+$(($SliceLeftWidth+$SliceMiddleWidth-2))+0 +repage ${NewBitmap}_ne.png
+[ "$ShowActivity" = "true" ] && echo "NorthEast done " $(($SliceRightWidth-1))x$(($SliceTopHeight-1))+$(($SliceLeftWidth+$SliceMiddleWidth-2))+0 $?
+convert $BitmapOriginalImage +repage -crop $(($SliceLeftWidth-1))x"$SliceCenterHeight"+0+$(($SliceTopHeight-1)) +repage ${NewBitmap}_w.png
+[ "$ShowActivity" = "true" ] && echo "West done " $(($SliceLeftWidth-1))x"$SliceCenterHeight"+0+$(($SliceTopHeight-1)) $?
+convert $BitmapOriginalImage +repage -crop "$SliceMiddleWidth"x"$SliceCenterHeight"+$(($SliceLeftWidth-1))+$(($SliceTopHeight-1)) +repage ${NewBitmap}_c.png
+[ "$ShowActivity" = "true" ] && echo "Center done " "$SliceMiddleWidth"x"$SliceCenterHeight"+$(($SliceLeftWidth-1))+$(($SliceTopHeight-1))  $?
+convert $BitmapOriginalImage +repage -crop $(($SliceRightWidth-1))x"$SliceCenterHeight"+$(($SliceLeftWidth+$SliceMiddleWidth-2))+$(($SliceTopHeight-1)) +repage ${NewBitmap}_e.png
+[ "$ShowActivity" = "true" ] && echo "East done " $(($SliceRightWidth-1))x"$SliceCenterHeight"+$(($SliceLeftWidth+$SliceMiddleWidth-2))+$(($SliceTopHeight-1)) $?
+convert $BitmapOriginalImage +repage -crop $(($SliceLeftWidth-1))x$(($SliceBottomHeight-1))+0+$(($SliceTopHeight+$SliceCenterHeight-2)) +repage ${NewBitmap}_sw.png
+[ "$ShowActivity" = "true" ] && echo "SouthWest done " $(($SliceLeftWidth-1))x$(($SliceBottomHeight-1))+0+$(($SliceTopHeight+$SliceCenterHeight-2))  $?
+convert $BitmapOriginalImage +repage -crop "$SliceMiddleWidth"x$(($SliceBottomHeight-1))+$(($SliceLeftWidth-1))+$(($SliceTopHeight+$SliceCenterHeight-2)) +repage ${NewBitmap}_s.png
+[ "$ShowActivity" = "true" ] && echo "South done " "$SliceMiddleWidth"x$(($SliceBottomHeight-1))+$(($SliceLeftWidth-1))+$(($SliceTopHeight+$SliceCenterHeight-2)) $?
+convert $BitmapOriginalImage +repage -crop $(($SliceRightWidth-1))x$(($SliceBottomHeight-1))+$(($SliceLeftWidth+$SliceMiddleWidth-2))+$(($SliceTopHeight+$SliceCenterHeight-2)) +repage ${NewBitmap}_se.png
+[ "$ShowActivity" = "true" ] && echo "SouthEast done " $(($SliceRightWidth-1))x$(($SliceBottomHeight-1))+$(($SliceLeftWidth+$SliceMiddleWidth-2))+$(($SliceTopHeight+$SliceCenterHeight-2)) $?
+}
+
+# TODO Set proper title to display window
+# TODO Cut/splice menu image to bitmaps
+# TODO Change the settings after final menu setting
+
+
 # Check for given command line parameters
 
-if [ $# -eq 0 ]; then
-	PGTemplate="default"
-else
+#if [ $# -eq 0 ]; then
+
+#else
 	while [ "${1+defined}" ]; do
 	#  shift
 		case "$1" in
 			-h|--help) echo -e "$PrettygrubHelp"
 				exit;
+				;;
+			-v|--verbose) ShowActivity="true"
+				shift
 				;;
 			-t|--template) shift
 				if [ "${1+defined}" ] && [ ! "${1#-}" = "-" ]; then
@@ -236,18 +452,17 @@ else
 				fi
 				;;
 			-a|--aspectratio) shift
-				if [ "$1" = "${1%_*}_${1#*_}" ]; then
+				if [[ $1 =~ [0-9]_[0-9] ]]; then
 					CustomAspectRatio="$1"
 					shift
 				else
 					echo "Invalid argument for Aspect Ratio"
-					echo $1 , "$asp", ${asp%*"_"}_ ${asp#_*}, ${1%*"_"}_ ${1#_*}
 					echo -e "$PrettygrubHelp"
 					exit;
 				fi
 				;;
 			-r|--resolution) shift
-				if [ "$1" = "${1%x*}x${1#*x}" ]; then
+				if [[ $1 =~ [0-9]x[0-9] ]]; then
 					CustomGrubResolution="$1"
 					shift
 				else
@@ -259,59 +474,79 @@ else
 			-p|--prettygrub) CustomHorizontalGrub="true"
 				shift
 				;;
+			-w|--window-preview) PreviewWindow="true"
+				shift
+				;;
+			-s|--slice) shift
+				if [ "${1:+defined}" ] && [ ! "${1#-}" = "-" ]; then
+					if [[ $1 =~ [0-9]x[0-9]+[0-9]+[0-9] ]]; then
+						CustomSliceMenu="$1"
+						shift
+					else
+						echo "Invalid argument for --slice"
+						echo -e "$PrettygrubHelp"
+						exit;
+					fi
+				else
+					SliceMenu="auto"
+				fi
+				#echo $SliceMenu
+				;;
 			-x|--scripted) shift
-				if [ "${1+defined}" ] && [ ! "${1#-}" = "-" ]; then
+				if [ "${1:+defined}" ] && [ ! "${1#-}" = "-" ]; then
 					CustomAutoActions="$1"
 					shift
 				fi
 				;;
-			*)	echo "Unknown argument"
+			*)	echo "Unknown argument $1"
 				echo "Exiting..."
 				exit;;
 		esac
 	done
+#fi
+
+GetPaths
+GetConfig
+if [[ "${SliceMenu:+defined}" ]] ; then
+	if [ $(which magick) ] && [ $(which convert) ] && [ $(which display) ]; then
+		[ "$ShowActivity" = "true" ] && echo Magick is available
+	else
+		echo Magick is not installed. You cannot use the "slice" function.
+		exit;
+	fi
 fi
 
-# Configuration paths
-DefaultTemplate="default"
-[ -d "$LocalDataPath"/templates/"$DefaultTemplate" ] && DefaultTemplate="$LocalDataPath"/templates/"$DefaultTemplate" || DefaultTemplate="$SystemDataPath"/templates/"$DefaultTemplate"
-echo "Default Template" "$DefaultTemplate"
-if  [ -d "$LocalDataPath"/templates/"$PGTemplate" ] ; then
-	Template="$LocalDataPath"/templates/"$PGTemplate"
-elif [ -d "$SystemDataPath"/templates/"$PGTemplate" ]; then
-	Template="$SystemDataPath"/templates/"$PGTemplate"
-else
-	echo "Template "$PGTemplate" is missing. Exiting..."
-	exit;
-fi
-#echo "Template" "$Template"
-DefaultResources="$DefaultTemplate"/resources
-Resources="$Template"/resources
-echo "Transforming " $Template
-
+PreviewResolution=$((${GrubResolution%x*}/2))
 CreateWorkDir
+if [[ "${SliceMenu:+defined}" ]] && [[ ! $(echo ${MainMenuBitmaps/\*/ISBITMAPS/} | grep -o ISBITMAPS) = "ISBITMAPS" ]]; then
+	if [ -r "$Resources"/"$MainMenuBitmaps" ]; then
+		ImageToSlice="$Resources"/"$MainMenuBitmaps"
+	else
+		echo "Image for Main Menu bitmaps was not found. Exiting..."
+		exit;
+	fi
+else
+	echo "MainMenuBitmaps setting is not valid. Exiting..."
+	[ "$ShowActivity" = "true" ] && echo SliceMenu  "${SliceMenu:+defined}"  MainMenuBitmaps "$MainMenuBitmaps"
+fi
+[ ${ImageToSlice:+defined} ] && SliceImageToBitmaps "$ImageToSlice" "$SliceMenu"
+GetConfig
+#if [ ! "$BitmapsPositionGeometry" = "" ]; then
+# TODO Set new menu left and top
+	echo $BitmapsPositionGeometry
+#fi
+[[ "${PreviewWindow:-false}" = "true" ]] && exit;
+[ "$ShowActivity" = "true" ] && echo "Transforming " $Template
+
+# Write settings and copy resources to theme temp folder
+
 echo -e "$PrettygrubHeading" > "$WorkDir"/theme.txt
-if  FileExists "$Template"/theme.txt ; then
+if  [ -r "$Template"/theme.txt ]; then
 	cat "$Template"/theme.txt >> "$WorkDir"/theme.txt
 else
 	cat "$DefaultTemplate"/theme.txt >> "$WorkDir"/theme.txt
-	echo "Template file(s) missing. Using default."
+	[ "$ShowActivity" = "true" ] && echo "Template file(s) missing. Using default."
 fi
-
-if [ -r "$DefaultTemplate"/default.conf ]; then . "$DefaultTemplate"/default.conf; fi
-if [ -r "$Template"/default.conf ]; then . "$Template"/default.conf; fi
-if [ ! $CustomAspectRatio = "" ]; then AspectRatio=$CustomAspectRatio; fi
-if [ -r "$DefaultTemplate"/"$AspectRatio".conf ]; then . "$DefaultTemplate"/"$AspectRatio".conf; fi
-if [ ! $CustomGrubResolution = "" ]; then GrubResolution=$CustomGrubResolution; fi
-if [ -r "$DefaultTemplate"/"$GrubResolution".conf ]; then . "$DefaultTemplate"/"$GrubResolution".conf ; fi
-if [ -r "$Template"/default.conf ]; then . "$Template"/default.conf; fi
-if [ -r "$Template"/"$AspectRatio".conf ]; then . "$Template"/"$AspectRatio".conf; fi
-if [ -r "$Template"/"$GrubResolution".conf ]; then . "$Template"/"$GrubResolution".conf ; fi
-
-# Apply command-line overrides
-HorizontalGrub=${CustomHorizontalGrub-$HorizontalGrub}
-AutoActions=${CustomAutoActions-$AutoActions}
-# Write settings and copy resources to theme temp folder
 
 PickResources "logos" "PG_PGLogo" $PGLogo
 PickResources "wallpapers" "PG_WallpaperImage" $WallpaperImage
@@ -399,8 +634,10 @@ if [ "$?" -ne 0 ]; then
 	echo "Theme folder creation failed!..."
 	return 1;
 fi
+#[ "$ShowActivity" = "true" ] &&
 echo "
-The new grub theme has been succesfully created and saved at " "$ThemeFolder"/"$NewGrubTheme"
+The new grub theme has been successfully created and saved at " "$ThemeFolder"/"$NewGrubTheme"
+
 }
 
 function PGSetActiveTheme {
@@ -413,7 +650,7 @@ function PGSetActiveTheme {
 	fi
 	ActiveGrubTheme=$(grep -e "^GRUB_THEME=" /etc/default/grub | cut -d= -f2)
 	ActiveGrubTheme=${ActiveGrubTheme%"/theme.txt"}
-	echo "New theme is "$NewActiveGrubTheme
+	[ "$ShowActivity" = "true" ] && echo "New theme is "$NewActiveGrubTheme
 	#echo "$GrubThemesFolder"/"$NewActiveGrubTheme"/theme.txt
 ## TODO confirm sed command to edit new theme setting for grub (before run grub)
 	if [ ! $IAMROOT ]; then
@@ -423,11 +660,10 @@ function PGSetActiveTheme {
 			#sudo sed -i '/^GRUB_THEME=/ s/[[:print:]]*/GRUB_THEME=\"'$GrubThemesFolder/$NewActiveGrubTheme'/theme.txt\"/ ' /etc/default/grub
 			sudo sed  -i -E '\%^\s{0,}GRUB_THEME=%c GRUB_THEME="'$GrubThemesFolder/$NewActiveGrubTheme'/theme.txt"' /etc/default/grub
 		else
-			echo "$GrubThemesFolder"/"$NewActiveGrubTheme"/theme.txt
+			[ "$ShowActivity" = "true" ] && echo "$GrubThemesFolder"/"$NewActiveGrubTheme"/theme.txt
 			sudo echo GRUB_THEME="$GrubThemesFolder"/"$NewActiveGrubTheme"/theme.txt >>  /etc/default/grub
 		fi
 		grep "GRUB_THEME=" /etc/default/grub
-		#exit;
 		sudo grub-mkconfig -o /boot/grub/grub.cfg
 		[ $HorizontalGrub = "true" ] && sudo horizontal-grub
 	else
@@ -437,11 +673,10 @@ function PGSetActiveTheme {
 			#sudo sed -i '/^GRUB_THEME=/ s/[[:print:]]*/GRUB_THEME=\"'$GrubThemesFolder/$NewActiveGrubTheme'/theme.txt\"/ ' /etc/default/grub
 			sed  -i -E '\%^\s{0,}GRUB_THEME=%c GRUB_THEME="'$GrubThemesFolder/$NewActiveGrubTheme'/theme.txt"' /etc/default/grub
 		else
-			echo "$GrubThemesFolder"/"$NewActiveGrubTheme"/theme.txt
+			[ "$ShowActivity" = "true" ] && echo "$GrubThemesFolder"/"$NewActiveGrubTheme"/theme.txt
 			echo GRUB_THEME="$GrubThemesFolder"/"$NewActiveGrubTheme"/theme.txt >>  /etc/default/grub
 		fi
 		grep "GRUB_THEME=" /etc/default/grub
-		#exit;
 		grub-mkconfig -o /boot/grub/grub.cfg
 		[ $HorizontalGrub = "true" ] && horizontal-grub
 	fi
@@ -452,8 +687,7 @@ function PGSetActiveTheme {
 		return 1;
 	fi
 	echo "New theme "$NewActiveGrubTheme" is saved and set active"
-	echo "
-	The new grub theme has been succesfully activated and saved at " "$GrubThemesFolder"/"$ActiveGrubTheme"
+	#echo "\nThe new grub theme has been succesfully activated and saved at " "$GrubThemesFolder"/"$ActiveGrubTheme"
 }
 
 
