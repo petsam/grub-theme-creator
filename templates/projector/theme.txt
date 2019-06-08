@@ -88,7 +88,7 @@ terminal-top: "0"
 # Help background
 + image {
  id="help_background"
- top= PG_HelpTop-10
+ top= PG_HelpTop
  left= 0
  width = 100%
  height = PG_HelpHeight+10

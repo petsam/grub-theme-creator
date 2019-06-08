@@ -47,7 +47,7 @@ function BatchCopy {
 		BatchFiles=""
 		CurrentResourceLeft=${1%\**}
 		CurrentResourceRight=${1#*\*}
-		BatchFiles=($(ls "$2"${1/*/\*}  2>$TmpErrors))
+		BatchFiles=($(ls "$2"${1/*/\*}  2>/dev/null))
 		if [ -z "${#BatchFiles[@]}" ]; then
 			[ "$ShowActivity" = "true" ] && echo "No files found for batch copy."
 			return 0;
@@ -90,13 +90,15 @@ ResourceSetting=$*
 CurrentResource=""
 if [ "$ResourceType" != "SETTING" ] && [ "$ResourceSetting" != "" ]; then
 	if [ "$ResourceType" = "fonts" ]; then
-		CurrentSetting=$(echo $ResourceSetting | cut -d, -f2,3,4 | tr -d \")
-		CurrentResource=$(echo $ResourceSetting | cut -d, -f1 | tr -d \")
+		CurrentSetting=$(echo "$ResourceSetting" | cut -d, -f2,3,4 | tr -d \")
+		CurrentResource=$(echo "$ResourceSetting" | cut -d, -f1 | tr -d \")
 	else
-		CurrentSetting=$ResourceSetting
-		CurrentResource=$ResourceSetting
+		CurrentSetting="$ResourceSetting"
+		CurrentResource="$ResourceSetting"
 	fi
-	if ! [ ${CurrentResource#*\*} = $CurrentResource ]; then
+	#for  ${#CurrentResource[@]}
+
+	if ! [ ${CurrentResource#*\*} = "$CurrentResource" ]; then
 		[ "$ShowActivity" = "true" ] && echo Copying "$CurrentResource" from "$Resources"/
 		BatchCopy "$CurrentResource" "$Resources"/
 		BCResult=$?
@@ -109,28 +111,28 @@ if [ "$ResourceType" != "SETTING" ] && [ "$ResourceSetting" != "" ]; then
 			fi
 		fi
 	else
-		if [ -d "$Resources"/$CurrentResource ] || [ -r "$Resources"/$CurrentResource ]; then
-			[ "$ShowActivity" = "true" ] && echo "Found " "$Resources"/$CurrentResource
-			CurrentResource="$Resources"/$CurrentResource
-		elif [ -d "$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource ] || [ -r "$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource ]; then
-			[ "$ShowActivity" = "true" ] && echo "Using default" "$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource
-			CurrentResource="$DefaultResources"/${ResourceType:+"$ResourceType"/}$CurrentResource
+		if [ -d "$Resources"/"$CurrentResource" ] || [ -r "$Resources"/"$CurrentResource" ]; then
+			[ "$ShowActivity" = "true" ] && echo "Found " "$Resources"/"$CurrentResource"
+			CurrentResource="$Resources"/"$CurrentResource"
+		elif [ -d "$DefaultResources"/"${ResourceType:+"$ResourceType"/}""$CurrentResource" ] || [ -r "$DefaultResources"/"${ResourceType:+"$ResourceType"/}""$CurrentResource" ]; then
+			[ "$ShowActivity" = "true" ] && echo "Using default" "$DefaultResources"/${ResourceType:+"$ResourceType"/}"$CurrentResource"
+			CurrentResource="$DefaultResources"/"${ResourceType:+"$ResourceType"/}""$CurrentResource"
 		else
-			echo "Could not find " $CurrentResource
+			echo "Could not find " "$CurrentResource"
 			return 0;
 		fi
 
 	fi
 	if [ "$ResourceType" = "icons" ]; then
 		mkdir "$WorkDir"/icons
-		if [ $UseTopMenu = "true" ]; then
-			[ "$ShowActivity" = "true" ] && echo "Converting and copying icons from " $CurrentResource " to " "$WorkDir"/icons
-			for DistroIcon in $(ls $CurrentResource/*); do
-				convert "$DistroIcon" -resize "$TopMenuIconWidth" -background None -gravity South -extent ${TopMenuIconWidth}x${TopMenuIconHeight} "$WorkDir"/icons/${DistroIcon##*\/}  2>$TmpErrors
+		if [ "$UseTopMenu" = "true" ]; then
+			[ "$ShowActivity" = "true" ] && echo "Converting and copying icons from " "$CurrentResource" " to " "$WorkDir"/icons
+			for DistroIcon in $(ls "$CurrentResource"/*); do
+				convert "$DistroIcon" -resize "$TopMenuIconWidth" -background None -gravity South -extent ${TopMenuIconWidth}x${TopMenuIconHeight} "$WorkDir"/icons/"${DistroIcon##*\/}"  2>$TmpErrors
 			done
 		else
-			[ "$ShowActivity" = "true" ] && echo "Copying icons from " $CurrentResource " to " "$WorkDir"/icons
-			cp -r $CurrentResource/* "$WorkDir"/icons/ 2>$TmpErrors
+			[ "$ShowActivity" = "true" ] && echo "Copying icons from " "$CurrentResource" " to " "$WorkDir"/icons
+			cp -r "$CurrentResource"/* "$WorkDir"/icons/ 2>$TmpErrors
 		fi
 	elif [ "$ResourceType" = "clock" ] || [ "$ResourceType" = "logos" ] || [ "$ResourceType" = "wallpapers" ]; then
 		case $SettingName in
@@ -138,29 +140,31 @@ if [ "$ResourceType" != "SETTING" ] && [ "$ResourceSetting" != "" ]; then
 			if [ ! "$GrubResolution" = "" ]; then
 				TransformImage ${GrubResolution%x*} ${GrubResolution#*x} $CurrentResource
 			else
-				cp -r $CurrentResource "$WorkDir"/  2>$TmpErrors
+				cp -r "$CurrentResource" "$WorkDir"/  2>$TmpErrors
 			fi
 		;;
-		PG_PGLogo)TransformImage $LogoWidth $LogoHeight $CurrentResource
+		PG_PGLogo)TransformImage "$LogoWidth" "$LogoHeight" "$CurrentResource"
 		;;
-		PG_ClockCenterImage)TransformImage $ClockWidth $ClockHeight $CurrentResource
+		PG_ClockCenterImage)TransformImage "$ClockWidth" "$ClockHeight" "$CurrentResource"
 		;;
-		PG_ClockTickImage)TransformImage $(($ClockWidth/10)) $(($ClockWidth/10)) $CurrentResource
+		PG_ClockTickImage)TransformImage $(($ClockWidth/10)) $(($ClockWidth/10)) "$CurrentResource"
 		;;
-		*)echo "$ResourceType $CurrentResource not found"
+		*)echo "$ResourceType "$CurrentResource" not found"
 		;;
 		esac
 	else
-		cp -r $CurrentResource "$WorkDir"/  2>$TmpErrors
+		# TODO Check if this needs remove quotes
+		cp -r "$CurrentResource" "$WorkDir"/  2>$TmpErrors
 	fi
 else
-	CurrentSetting=$ResourceSetting
+	CurrentSetting="$ResourceSetting"
 fi
 
 if [ "$CurrentSetting" = "" ]; then
 	sed -i '/'"$SettingName"'/d' "$WorkDir"/theme.txt
 else
-	#echo "$SettingName" set to "$CurrentSetting"
+	echo "$SettingName" set to "$CurrentSetting"
+	# TODO correct the setting for *
 	sed -i 's/'"$SettingName"'/'"$CurrentSetting"'/g' "$WorkDir"/theme.txt
 fi
 }
@@ -297,7 +301,7 @@ function SliceImageToBitmaps {
 	if [ ${GrubResolution-empty} = "empty" ] || [ ${OriginalImage-empty} = "empty" ] || [ ${BitmapsCutGeometry-empty} = "empty" ] || [ ${BitmapsPositionGeometry-empty} = "empty" ]; then
 		echo "Incomplete settings collected. Template will not be adjusted automatically."
 	else
-		ChangeTemplateSettings $GrubResolution $NewBitmap $BitmapsPositionGeometry
+		ChangeTemplateSettings $GrubResolution ${OriginalImage##*/} $BitmapsPositionGeometry
 
 	fi
 	NewBitmap="" && BitmapsPositionGeometry=""
@@ -308,7 +312,8 @@ function ChangeTemplateSettings {
 	[ ! -w "$Template"/"$1".conf ] && touch "$Template"/"$1".conf 2>$TmpErrors
 	[ $(grep "^SliceMenu=" "$Template"/"$1".conf) ] && sed -i 's|^SliceMenu=|^#SliceMenu=|g' "$Template"/"$1".conf 2>$TmpErrors
 	echo "SliceMenu=\"\"" >> "$Template"/"$1".conf 2>$TmpErrors
-	echo "MainMenuBitmaps="${2##*/}"_*.png" >> "$Template"/"$1".conf 2>$TmpErrors
+	#NewBitmapValue
+	echo "MainMenuBitmaps=\"$2_"\*".png"\" >> "$Template"/"$1".conf 2>$TmpErrors
 	ElementSize=${3%%+*} #  500x400
 	ElementPosition=${3#*+}  # 30+70
 	ElementWidth=${ElementSize%x*}
@@ -557,27 +562,27 @@ else
 	[ "$ShowActivity" = "true" ] && echo "Template file(s) missing. Using default."
 fi
 
-PickResources "logos" "PG_PGLogo" $PGLogo
-PickResources "wallpapers" "PG_WallpaperImage" $WallpaperImage
+PickResources "logos" "PG_PGLogo" "$PGLogo"
+PickResources "wallpapers" "PG_WallpaperImage" "$WallpaperImage"
 PickResources "SETTING" "PG_HelpTextLength" $HelpTextLength
 
-PickResources "icons" "PG_DistroIcons" $DistroIcons
+PickResources "icons" "PG_DistroIcons" "$DistroIcons"
 
-PickResources "menu" "PG_MainMenuBitmaps" $MainMenuBitmaps
-PickResources "menuitem" "PG_MainMenuItemBitmaps" $MainMenuItemBitmaps
-PickResources "selected" "PG_MainMenuSelectedBitmaps" $MainMenuSelectedBitmaps
-PickResources "menu" "PG_TopMenuBitmaps" $TopMenuBitmaps
+PickResources "menu" "PG_MainMenuBitmaps" "$MainMenuBitmaps"
+PickResources "menuitem" "PG_MainMenuItemBitmaps" "$MainMenuItemBitmaps"
+PickResources "selected" "PG_MainMenuSelectedBitmaps" "$MainMenuSelectedBitmaps"
+PickResources "menu" "PG_TopMenuBitmaps" "$TopMenuBitmaps"
 
-PickResources "clock" "PG_ClockCenterImage" $ClockCenterImage
-PickResources "clock" "PG_ClockTickImage" $ClockTickImage
+PickResources "clock" "PG_ClockCenterImage" "$ClockCenterImage"
+PickResources "clock" "PG_ClockTickImage" "$ClockTickImage"
 PickResources "SETTING" "PG_ClockWidth" $ClockWidth
 PickResources "SETTING" "PG_ClockHeight" $ClockHeight
 
-PickResources "fonts" "PG_TerminalFont" $TerminalFont
-PickResources "terminal" "PG_TerminalBitmaps" $TerminalBitmaps
-PickResources "fonts" "PG_MainMenuItemFont" $MainMenuItemFont
-PickResources "fonts" "PG_MainMenuSelectedItemFont" $MainMenuSelectedItemFont
-PickResources "fonts" "PG_HelpFont" $HelpFont
+PickResources "fonts" "PG_TerminalFont" "$TerminalFont"
+PickResources "terminal" "PG_TerminalBitmaps" "$TerminalBitmaps"
+PickResources "fonts" "PG_MainMenuItemFont" "$MainMenuItemFont"
+PickResources "fonts" "PG_MainMenuSelectedItemFont" "$MainMenuSelectedItemFont"
+PickResources "fonts" "PG_HelpFont" "$HelpFont"
 
 PickResources "SETTING" "PG_MainMenuLeft" $MainMenuLeft
 PickResources "SETTING" "PG_MainMenuTop" $MainMenuTop
