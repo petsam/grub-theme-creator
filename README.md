@@ -123,7 +123,7 @@ sudo cp prettygrub  /usr/local/bin
 
 ## CONTRIBUTION
 I want to thank
-* my good friend @sgse (aka sgs at Manjaro Forum) for his valuable help, providing beautiful images and testing
+* my good friend @sgse (aka sgs at Garuda Forum) for his valuable help, providing beautiful images and testing
 * @yochananmarqos (aka yochanan at Manjaro Forum) for the PKGBUILD and AUR packaging
 
 Please, provide bug reports and feature requests, for further improvements.
